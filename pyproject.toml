@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "us-etf-predictor"
+version = "0.1.0"
+description = "Personal US ETF direction-prediction MVP without order execution"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "duckdb>=1.1,<2",
+  "joblib>=1.4,<2",
+  "lightgbm>=4.5,<5",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "plotly>=5.24,<7",
+  "pyarrow>=17,<22",
+  "requests>=2.32,<3",
+  "scikit-learn>=1.5,<2",
+  "streamlit>=1.39,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<10",
+  "ruff>=0.7,<1",
+]
+
+[project.scripts]
+etf-mvp = "etf_mvp.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/etf_mvp"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+filterwarnings = [
+  # numpy 2.x warns inside pandas Timedelta arithmetic; not actionable here
+  "ignore:The 'generic' unit for NumPy timedelta:DeprecationWarning",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"pages/*.py" = ["E501"]

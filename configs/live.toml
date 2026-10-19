@@ -1,0 +1,71 @@
+# Live profile: real providers for every kind. Needs network and these env vars:
+#   TIINGO_API_KEY, FRED_API_KEY, ALPHAVANTAGE_API_KEY, SEC_USER_AGENT
+# Usage: uv run etf-mvp --config configs/live.toml run
+
+[universe]
+symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD"]
+targets = ["SPY", "QQQ", "IWM"]
+
+[data]
+start = "2014-01-01"
+end = ""
+prices_path = "data/market/prices.parquet"
+features_path = "data/processed/features.parquet"
+warehouse_path = "data/warehouse.duckdb"
+raw_dir = "data/raw"
+
+[model]
+horizon_days = 5
+test_fraction = 0.20
+probability_threshold = 0.50
+random_seed = 42
+
+[output]
+artifacts_dir = "artifacts"
+
+# ---- Data sources, one section per kind --------------------------------------
+# provider: see `etf-mvp sources` for the options of each kind.
+
+[sources.market]            # 行情: daily adjusted OHLCV
+provider = "tiingo"      # synthetic | tiingo (TIINGO_API_KEY)
+
+[sources.macro]             # 宏观: FRED; vintage=true uses ALFRED first releases
+enabled = true
+provider = "fred"      # synthetic | fred (FRED_API_KEY)
+series = [
+  { id = "DGS10" },                       # 10Y Treasury yield
+  { id = "DGS2" },                        # 2Y Treasury yield
+  { id = "T10Y2Y" },                      # 10Y-2Y spread
+  { id = "VIXCLS" },                      # VIX
+  { id = "BAMLH0A0HYM2" },                # high-yield OAS
+  { id = "DFF" },                         # effective fed funds rate
+  { id = "CPIAUCSL", vintage = true },    # CPI (revised -> first release)
+  { id = "UNRATE", vintage = true },      # unemployment rate
+  { id = "ICSA", vintage = true },        # initial jobless claims
+]
+
+[sources.fundamental]       # 基本面: holdings' 10-Q/10-K facts, aggregated per ETF
+enabled = true
+provider = "sec_edgar"      # synthetic | sec_edgar (SEC_USER_AGENT)
+
+# Static snapshot of large holdings. Using today's holdings for past dates adds
+# survivorship bias; refresh it periodically and treat results with care.
+[sources.fundamental.holdings]
+SPY = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AVGO", "JPM"]
+QQQ = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AVGO", "COST"]
+XLK = ["NVDA", "AAPL", "MSFT", "AVGO", "ORCL"]
+XLF = ["JPM", "V", "MA", "BAC", "WFC"]
+XLE = ["XOM", "CVX", "COP", "EOG", "SLB"]
+
+[sources.news]              # 新闻: article sentiment, fetched incrementally
+enabled = true
+provider = "alphavantage"      # synthetic | alphavantage (ALPHAVANTAGE_API_KEY)
+incremental = true
+topics = ["financial_markets", "economy_monetary", "economy_macro", "technology", "energy_transportation"]
+window_days = 30
+max_requests = 20           # free tier is ~25 calls/day; the rest resumes next run
+
+[sources.central_bank]      # 美联储议息: FOMC calendar, rate decisions, 2Y-yield reaction
+enabled = true
+provider = "fred"      # synthetic | fred (FRED_API_KEY)
+meetings_csv = "data/reference/fomc_meetings.csv"   # optional: adds to / overrides the bundled calendar
