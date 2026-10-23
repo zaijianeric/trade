@@ -146,6 +146,14 @@ def simulate_intraday_candles(
     high_index, low_index = random.choice(candidate_indexes, size=2, replace=False)
     while abs(high_index - low_index) < intervals // 6:
         high_index, low_index = random.choice(candidate_indexes, size=2, replace=False)
+
+    pivot_weights = (0.25, 0.6, 1.0, 0.6, 0.25)
+    for offset, weight in zip(range(-2, 3), pivot_weights, strict=True):
+        index = high_index + offset
+        closes[index] += (predicted_high - closes[index]) * weight
+    for offset, weight in zip(range(-2, 3), pivot_weights, strict=True):
+        index = low_index + offset
+        closes[index] += (predicted_low - closes[index]) * weight
     closes[0] = predicted_open
     closes[-1] = predicted_close
     opens = np.concatenate(([predicted_open], closes[:-1]))

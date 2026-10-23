@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
 
 from etf_mvp.config import AppConfig, load_config
 from etf_mvp.data.kinds import DataKind
 from etf_mvp.data.registry import available_providers
+from etf_mvp.interpretation import load_local_env
+from etf_mvp.intraday import (
+    IntradayPaths,
+    fetch_intraday_symbols,
+    run_intraday_pipeline,
+    train_intraday_symbols,
+)
 from etf_mvp.pipeline import fetch_data, run_pipeline, train_models
 
 KIND_CHOICES = [kind.value for kind in DataKind]
@@ -64,13 +72,63 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser("train", help="Train from persisted data")
     subparsers.add_parser("sources", help="List data kinds and their configured providers")
+    for command, help_text in (
+        ("intraday-fetch", "Fetch multi-year 5-minute QQQ and SOXX bars"),
+        ("intraday-run", "Fetch and train separate 5-minute QQQ and SOXX models"),
+    ):
+        intraday_parser = subparsers.add_parser(command, help=help_text)
+        intraday_parser.add_argument("--start", default="2018-01-01")
+        intraday_parser.add_argument("--end")
+        intraday_parser.add_argument("--feed", choices=("sip", "iex"), default="iex")
+    subparsers.add_parser(
+        "intraday-train", help="Train separate QQQ and SOXX models from stored 5-minute bars"
+    )
     return parser
 
 
 def main() -> None:
+    load_local_env()
     args = build_parser().parse_args()
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING)
     config = _apply_overrides(load_config(args.config), args)
+
+    if args.command.startswith("intraday-"):
+        project_root = Path(config.data.prices_path).parent.parent.parent
+        paths = IntradayPaths(
+            data_dir=project_root / "data" / "intraday",
+            artifacts_dir=config.output.artifacts_dir / "intraday",
+        )
+        try:
+            if args.command == "intraday-fetch":
+                frames = fetch_intraday_symbols(
+                    paths,
+                    start=args.start,
+                    end=args.end,
+                    feed=args.feed,
+                )
+                for symbol, frame in frames.items():
+                    print(f"{symbol:<4} {len(frame):>9,} five-minute bars")
+                return
+            if args.command == "intraday-train":
+                results = train_intraday_symbols(paths, config.model.random_seed)
+            else:
+                results = run_intraday_pipeline(
+                    paths,
+                    start=args.start,
+                    end=args.end,
+                    feed=args.feed,
+                    random_seed=config.model.random_seed,
+                )
+        except (FileNotFoundError, RuntimeError, ValueError) as error:
+            raise SystemExit(str(error)) from None
+        for result in results:
+            print(
+                f"{result.symbol}: {result.model_name}, "
+                f"forecast={result.forecast_date.date()}, "
+                f"direction_accuracy={result.metrics['direction_accuracy']:.1%}"
+            )
+        print(f"Artifacts: {paths.artifacts_dir}")
+        return
 
     if args.command == "sources":
         for kind in DataKind:

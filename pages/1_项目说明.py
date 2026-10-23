@@ -155,7 +155,7 @@ st.markdown(
       <div class="architecture-rows">
         <div class="architecture-row">
           <div class="layer-label"><span class="layer-number">01</span><span class="layer-name">数据源</span></div>
-          <div class="architecture-card"><div class="card-title">真实日线</div><div class="card-detail">Nasdaq · 9只ETF OHLCV</div></div>
+          <div class="architecture-card"><div class="card-title">日线与分钟</div><div class="card-detail">Nasdaq 日线 · Alpaca QQQ/SOXX 5分钟</div></div>
           <div class="architecture-card"><div class="card-title">新闻情绪</div><div class="card-detail">SF Fed · Daily News Sentiment</div></div>
           <div class="architecture-card"><div class="card-title">地缘风险</div><div class="card-detail">GPR · Threats · Acts</div></div>
         </div>
@@ -176,8 +176,8 @@ st.markdown(
 
         <div class="architecture-row model">
           <div class="layer-label"><span class="layer-number">04</span><span class="layer-name">模型训练</span></div>
-          <div class="architecture-card"><div class="card-title">树模型</div><div class="card-detail">LightGBM · LGBMClassifier</div></div>
-          <div class="architecture-card"><div class="card-title">时间验证</div><div class="card-detail">按时间切分 · 预测周期隔离</div></div>
+          <div class="architecture-card"><div class="card-title">树与序列模型</div><div class="card-detail">日线分类 · 分钟直接多时点回归</div></div>
+          <div class="architecture-card"><div class="card-title">时间验证</div><div class="card-detail">扩展窗口 · 标的独立回测</div></div>
           <div class="architecture-card"><div class="card-title">概率评估</div><div class="card-detail">ROC AUC · Brier · Log Loss · Accuracy</div></div>
         </div>
 
@@ -191,7 +191,7 @@ st.markdown(
         <div class="architecture-row boundary">
           <div class="layer-label"><span class="layer-number">06</span><span class="layer-name">项目边界</span></div>
           <div class="architecture-card"><div class="card-title">不执行交易</div><div class="card-detail">无券商连接 · 无账户权限 · 无订单接口</div></div>
-          <div class="architecture-card"><div class="card-title">日线研究</div><div class="card-detail">非实时行情 · 非高频系统</div></div>
+          <div class="architecture-card"><div class="card-title">研究模型</div><div class="card-detail">分钟预测非实时报价 · 非高频系统</div></div>
           <div class="architecture-card"><div class="card-title">决策辅助</div><div class="card-detail">概率不是收益承诺 · 不构成投资建议</div></div>
         </div>
       </div>
@@ -286,6 +286,7 @@ with guide_left:
 │   │   ├── store.py          # Parquet / DuckDB
 │   │   └── service.py        # 采集与加载
 │   ├── features/             # 每类数据一个因子模块，按可用日期对齐
+│   ├── intraday.py           # QQQ / SOXX 独立5分钟数据、训练与走步回测
 │   ├── modeling.py           # 模型训练与评估
 │   └── pipeline.py           # 端到端流水线
 ├── tests/                    # 自动化测试
@@ -308,6 +309,9 @@ uv run etf-mvp sources
 # 免费真实数据（仅 FRED 需要 API Key）
 uv run etf-mvp --config configs/free.toml run
 
+# QQQ / SOXX 多年5分钟数据、独立训练与独立回测
+uv run etf-mvp --config configs/free.toml intraday-run --start 2018-01-01 --feed iex
+
 # 只更新某一类数据，例如宏观
 uv run etf-mvp --config configs/free.toml fetch --kind macro
 
@@ -319,7 +323,7 @@ ETF_MVP_CONFIG=configs/free.toml uv run streamlit run app.py""",
 st.markdown(
     """
     <div class="boundary-note">
-      <strong>设计原则：</strong>数据层已接入行情、宏观、新闻情绪、地缘风险与美联储议息，所有非行情数据按“可用日期”对齐，并对周频发布的新闻/GPR指数采用保守滞后以避免前视偏差；次日 OHLC 模型采用五折扩展窗口样本外回测，下一步是概率校准和模型监控；不会在 MVP 阶段引入券商账户或自动交易权限。
+      <strong>设计原则：</strong>数据层已接入行情、宏观、新闻情绪、地缘风险与美联储议息，所有非行情数据按“可用日期”对齐，并对周频发布的新闻/GPR指数采用保守滞后以避免前视偏差；次日 OHLC 模型采用五折扩展窗口样本外回测，QQQ 与 SOXX 另用多年5分钟数据分别训练独立序列模型并单独回测；不会在 MVP 阶段引入券商账户或自动交易权限。
     </div>
     """,
     unsafe_allow_html=True,

@@ -42,8 +42,8 @@ def test_forecast_has_consistent_ohlc_and_intraday_path() -> None:
     assert forecast.intraday.iloc[-1]["close"] == forecast.predicted_close
     assert forecast.intraday["high"].max() == forecast.predicted_high
     assert forecast.intraday["low"].min() == forecast.predicted_low
-    assert forecast.intraday["close"].max() < forecast.predicted_high
-    assert forecast.intraday["close"].min() > forecast.predicted_low
+    assert forecast.intraday["close"].max() == forecast.predicted_high
+    assert forecast.intraday["close"].min() == forecast.predicted_low
     assert not forecast.backtest.empty
     assert (
         forecast.backtest["train_end_date"] < forecast.backtest["date"]
