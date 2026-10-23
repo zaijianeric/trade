@@ -1,0 +1,59 @@
+# Free live profile: real ETF prices from Nasdaq and macro/FOMC data from FRED.
+# Requires only FRED_API_KEY. Fundamental and news sources are disabled.
+
+[universe]
+symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD", "SOXX"]
+targets = ["SPY", "QQQ", "IWM"]
+
+[data]
+start = "2014-01-01"
+end = ""
+prices_path = "data/market/prices.parquet"
+features_path = "data/processed/features.parquet"
+warehouse_path = "data/warehouse.duckdb"
+raw_dir = "data/raw"
+
+[model]
+horizon_days = 5
+test_fraction = 0.20
+probability_threshold = 0.50
+random_seed = 42
+
+[output]
+artifacts_dir = "artifacts"
+
+[sources.market]
+provider = "nasdaq"
+
+[sources.macro]
+enabled = true
+provider = "fred"
+series = [
+  { id = "DGS10" },
+  { id = "DGS2" },
+  { id = "T10Y2Y" },
+  { id = "VIXCLS" },
+  { id = "BAMLH0A0HYM2" },
+  { id = "DFF" },
+  { id = "CPIAUCSL", vintage = true },
+  { id = "UNRATE", vintage = true },
+  { id = "ICSA", vintage = true },
+]
+
+[sources.fundamental]
+enabled = false
+provider = "synthetic"
+
+[sources.news]
+enabled = true
+provider = "sf_fed"
+incremental = true
+
+[sources.geopolitical]
+enabled = true
+provider = "gpr"
+
+[sources.central_bank]
+enabled = true
+provider = "fred"
+meetings_csv = "data/reference/fomc_meetings.csv"

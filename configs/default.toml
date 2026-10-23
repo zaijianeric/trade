@@ -2,7 +2,7 @@
 # pipeline runs without network or API keys. See live.toml for real sources.
 
 [universe]
-symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD"]
+symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD", "SOXX"]
 targets = ["SPY", "QQQ", "IWM"]
 
 [data]
@@ -55,6 +55,7 @@ QQQ = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AVGO", "COST"]
 XLK = ["NVDA", "AAPL", "MSFT", "AVGO", "ORCL"]
 XLF = ["JPM", "V", "MA", "BAC", "WFC"]
 XLE = ["XOM", "CVX", "COP", "EOG", "SLB"]
+SOXX = ["NVDA", "AVGO", "AMD", "QCOM", "TXN", "MU", "AMAT", "LRCX"]
 
 [sources.news]              # 新闻: article sentiment, fetched incrementally
 enabled = true
@@ -63,6 +64,10 @@ incremental = true
 topics = ["financial_markets", "economy_monetary", "economy_macro", "technology", "energy_transportation"]
 window_days = 30
 max_requests = 20           # free tier is ~25 calls/day; the rest resumes next run
+
+[sources.geopolitical]      # 地缘风险: daily GPR, threats and acts indexes
+enabled = true
+provider = "synthetic"      # synthetic | gpr
 
 [sources.central_bank]      # 美联储议息: FOMC calendar, rate decisions, 2Y-yield reaction
 enabled = true

@@ -38,10 +38,33 @@ def build_news_features(
     if articles.empty:
         return pd.DataFrame(index=dates)
 
-    columns = _scope_features(articles, dates, "news__all")
-    article_topics = articles["topics"].fillna("").str.split(",")
+    columns: dict[str, pd.Series] = {}
+    sources = (
+        articles["source"]
+        if "source" in articles
+        else pd.Series("", index=articles.index, dtype="object")
+    )
+    sf_fed = articles.loc[sources == "sf_fed"]
+    if not sf_fed.empty:
+        index_level = (
+            sf_fed.groupby("trading_date")["sentiment"]
+            .last()
+            .reindex(dates)
+            .ffill()
+        )
+        columns["news__economic_sentiment__level"] = index_level
+        columns["news__economic_sentiment__chg_5d"] = index_level.diff(5)
+        columns["news__economic_sentiment__z_60d"] = rolling_zscore(index_level, 60)
+        columns["news__economic_sentiment__z_252d"] = rolling_zscore(index_level, 252)
+
+    article_news = articles.loc[sources != "sf_fed"]
+    if article_news.empty:
+        return pd.DataFrame(columns, index=dates).replace([np.inf, -np.inf], np.nan)
+
+    columns |= _scope_features(article_news, dates, "news__all")
+    article_topics = article_news["topics"].fillna("").str.split(",")
     for topic in topics:
         mask = article_topics.map(lambda values, t=topic: t in values).astype(bool)
         if mask.any():
-            columns |= _scope_features(articles.loc[mask], dates, f"news__{topic}")
+            columns |= _scope_features(article_news.loc[mask], dates, f"news__{topic}")
     return pd.DataFrame(columns, index=dates).replace([np.inf, -np.inf], np.nan)

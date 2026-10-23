@@ -1,13 +1,68 @@
 """Parsers for the real providers, tested against payloads shaped like the live APIs."""
 
+from io import BytesIO
+
 import pandas as pd
 import pytest
 
 from etf_mvp.data.kinds import DataKind, normalize
 from etf_mvp.data.sources.central_bank import build_fomc_events, load_meetings
 from etf_mvp.data.sources.fundamental import parse_company_facts
+from etf_mvp.data.sources.geopolitical import parse_gpr_daily
 from etf_mvp.data.sources.macro import MacroSeries, parse_fred_observations
-from etf_mvp.data.sources.news import parse_news_feed, topic_slug
+from etf_mvp.data.sources.market import parse_nasdaq_prices
+from etf_mvp.data.sources.news import (
+    parse_news_feed,
+    parse_sf_fed_sentiment,
+    topic_slug,
+)
+
+
+def test_nasdaq_market_rows_parse_currency_and_volume() -> None:
+    rows = [
+        {
+            "date": "10/21/2026",
+            "close": "$773.09",
+            "volume": "31,943,810",
+            "open": "771.17",
+            "high": "774.44",
+            "low": "768.40",
+        }
+    ]
+
+    frame = parse_nasdaq_prices(rows, "SPY")
+
+    assert frame.loc[0, "date"] == pd.Timestamp("2026-10-21")
+    assert frame.loc[0, "symbol"] == "SPY"
+    assert frame.loc[0, "close"] == pytest.approx(773.09)
+    assert frame.loc[0, "volume"] == 31_943_810
+
+
+def test_sf_fed_sentiment_uses_next_business_day() -> None:
+    text = "date,Daily news sentiment\n10/16/2026,-0.25\n10/17/2026,-0.10\n"
+
+    frame = parse_sf_fed_sentiment(text, "2026-10-01", "2026-10-31")
+
+    assert len(frame) == 1
+    assert frame.loc[0, "sentiment"] == pytest.approx(-0.25)
+    assert frame.loc[0, "available_date"] == pd.Timestamp("2026-10-23")
+
+
+def test_gpr_daily_uses_conservative_publication_lag() -> None:
+    raw = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-10-10"]),
+            "GPRD": [150.0],
+            "GPRD_THREAT": [100.0],
+            "GPRD_ACT": [50.0],
+        }
+    )
+    buffer = BytesIO()
+    raw.to_stata(buffer, write_index=False)
+    frame = parse_gpr_daily(buffer.getvalue(), "2026-10-01", "2026-10-31")
+
+    assert frame.loc[0, "available_date"] == pd.Timestamp("2026-10-17")
+    assert frame.loc[0, "gpr"] == pytest.approx(150.0)
 
 
 def test_fred_daily_series_uses_publication_lag() -> None:

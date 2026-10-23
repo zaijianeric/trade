@@ -63,6 +63,7 @@ def default_sources() -> dict[DataKind, SourceConfig]:
             incremental=True,
             options={"topics": ["financial_markets", "economy_monetary", "economy_macro"]},
         ),
+        DataKind.GEOPOLITICAL: SourceConfig(),
         DataKind.CENTRAL_BANK: SourceConfig(),
     }
 

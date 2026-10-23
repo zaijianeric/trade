@@ -14,6 +14,7 @@ from etf_mvp.data.service import DataBundle
 from etf_mvp.data.sources.macro import MacroSeries
 from etf_mvp.features.central_bank import build_central_bank_features
 from etf_mvp.features.fundamental import build_fundamental_features
+from etf_mvp.features.geopolitical import build_geopolitical_features
 from etf_mvp.features.macro import build_macro_features
 from etf_mvp.features.news import build_news_features
 from etf_mvp.features.price import build_price_features, build_target
@@ -48,6 +49,13 @@ def build_feature_table(bundle: DataBundle, config: AppConfig) -> pd.DataFrame:
     if config.source(DataKind.NEWS).enabled and DataKind.NEWS in bundle.frames:
         topics = config.source(DataKind.NEWS).options.get("topics", [])
         blocks.append(build_news_features(bundle.get(DataKind.NEWS), dates, topics))
+    if (
+        config.source(DataKind.GEOPOLITICAL).enabled
+        and DataKind.GEOPOLITICAL in bundle.frames
+    ):
+        blocks.append(
+            build_geopolitical_features(bundle.get(DataKind.GEOPOLITICAL), dates)
+        )
 
     table = pd.concat(blocks, axis=1)
     table.index.name = "date"
@@ -64,6 +72,8 @@ def feature_groups(columns: list[str]) -> dict[str, str]:
             groups[column] = DataKind.CENTRAL_BANK.value
         elif column.startswith("news__"):
             groups[column] = DataKind.NEWS.value
+        elif column.startswith("geo__"):
+            groups[column] = DataKind.GEOPOLITICAL.value
         elif "__fund_" in column:
             groups[column] = DataKind.FUNDAMENTAL.value
         else:

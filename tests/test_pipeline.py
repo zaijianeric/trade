@@ -56,7 +56,14 @@ def test_pipeline_reports_importance_by_kind(tmp_path: Path) -> None:
     )
     run_pipeline(config)
     by_kind = pd.read_csv(tmp_path / "artifacts" / "importance_by_kind.csv")
-    assert {"market", "macro", "fundamental", "news", "central_bank"} <= set(by_kind["kind"])
+    assert {
+        "market",
+        "macro",
+        "fundamental",
+        "news",
+        "geopolitical",
+        "central_bank",
+    } <= set(by_kind["kind"])
     features = pd.read_parquet(tmp_path / "features.parquet")
     assert any(c.startswith("macro__") for c in features.columns)
     assert any(c.startswith("cb__") for c in features.columns)

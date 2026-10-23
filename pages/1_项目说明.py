@@ -155,9 +155,9 @@ st.markdown(
       <div class="architecture-rows">
         <div class="architecture-row">
           <div class="layer-label"><span class="layer-number">01</span><span class="layer-name">数据源</span></div>
-          <div class="architecture-card"><div class="card-title">演示行情</div><div class="card-detail">SyntheticProvider · 固定随机种子</div></div>
-          <div class="architecture-card"><div class="card-title">真实日线</div><div class="card-detail">Tiingo · Adjusted OHLCV</div></div>
-          <div class="architecture-card"><div class="card-title">ETF 标的池</div><div class="card-detail">SPY · QQQ · IWM · 行业与资产 ETF</div></div>
+          <div class="architecture-card"><div class="card-title">真实日线</div><div class="card-detail">Nasdaq · 9只ETF OHLCV</div></div>
+          <div class="architecture-card"><div class="card-title">新闻情绪</div><div class="card-detail">SF Fed · Daily News Sentiment</div></div>
+          <div class="architecture-card"><div class="card-title">地缘风险</div><div class="card-detail">GPR · Threats · Acts</div></div>
         </div>
 
         <div class="architecture-row">
@@ -169,9 +169,9 @@ st.markdown(
 
         <div class="architecture-row">
           <div class="layer-label"><span class="layer-number">03</span><span class="layer-name">特征工程</span></div>
-          <div class="architecture-card"><div class="card-title">动量与趋势</div><div class="card-detail">1/2/5/10/20 日收益 · 均线偏离</div></div>
-          <div class="architecture-card"><div class="card-title">风险状态</div><div class="card-detail">年化波动率 · 下行波动 · RSI</div></div>
-          <div class="architecture-card"><div class="card-title">市场联动</div><div class="card-detail">跨 ETF 特征 · 成交量 Z-Score</div></div>
+          <div class="architecture-card"><div class="card-title">行情技术</div><div class="card-detail">收益 · 波动 · 均线 · RSI · 成交量</div></div>
+          <div class="architecture-card"><div class="card-title">新闻与地缘</div><div class="card-detail">情绪水平/变化 · GPR/威胁/行动</div></div>
+          <div class="architecture-card"><div class="card-title">宏观与央行</div><div class="card-detail">利率 · 通胀 · 就业 · FOMC</div></div>
         </div>
 
         <div class="architecture-row model">
@@ -257,6 +257,8 @@ st.markdown(
       <span class="stack-chip">Parquet</span>
       <span class="stack-chip">Streamlit</span>
       <span class="stack-chip">Plotly</span>
+      <span class="stack-chip">SF Fed News Sentiment</span>
+      <span class="stack-chip">GPR Index</span>
       <span class="stack-chip">uv</span>
       <span class="stack-chip">pytest</span>
       <span class="stack-chip">Ruff</span>
@@ -274,11 +276,12 @@ with guide_left:
 ├── app.py                    # 交互预测看板
 ├── pages/1_项目说明.py        # 当前技术文档页
 ├── configs/default.toml      # 离线配置（全部合成数据）
+├── configs/free.toml         # 免费真实数据（Nasdaq / FRED / SF Fed / GPR）
 ├── configs/live.toml         # 真实数据源配置
 ├── src/etf_mvp/
 │   ├── data/                 # 数据层（按数据种类划分）
 │   │   ├── kinds.py          # 数据种类与 point-in-time 结构
-│   │   ├── sources/          # market / macro / fundamental / news / central_bank
+│   │   ├── sources/          # market / macro / news / geopolitical / central_bank
 │   │   ├── registry.py       # 各种类可选数据源
 │   │   ├── store.py          # Parquet / DuckDB
 │   │   └── service.py        # 采集与加载
@@ -302,21 +305,21 @@ uv run etf-mvp run --provider synthetic
 # 查看各类数据源
 uv run etf-mvp sources
 
-# 全部使用真实数据源（需 API Key）
-uv run etf-mvp --config configs/live.toml run
+# 免费真实数据（仅 FRED 需要 API Key）
+uv run etf-mvp --config configs/free.toml run
 
 # 只更新某一类数据，例如宏观
-uv run etf-mvp --config configs/live.toml fetch --kind macro
+uv run etf-mvp --config configs/free.toml fetch --kind macro
 
 # 启动前端
-uv run streamlit run app.py""",
+ETF_MVP_CONFIG=configs/free.toml uv run streamlit run app.py""",
         language="bash",
     )
 
 st.markdown(
     """
     <div class="boundary-note">
-      <strong>设计原则：</strong>数据层已按种类接入行情、宏观、基本面、新闻与美联储议息，所有非行情数据按“可用日期”对齐以避免前视偏差；下一步是概率校准、滚动回测和模型监控；不会在 MVP 阶段引入券商账户或自动交易权限。
+      <strong>设计原则：</strong>数据层已接入行情、宏观、新闻情绪、地缘风险与美联储议息，所有非行情数据按“可用日期”对齐，并对周频发布的新闻/GPR指数采用保守滞后以避免前视偏差；次日 OHLC 模型采用五折扩展窗口样本外回测，下一步是概率校准和模型监控；不会在 MVP 阶段引入券商账户或自动交易权限。
     </div>
     """,
     unsafe_allow_html=True,
