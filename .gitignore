@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .env
-/data/
-/artifacts/
+# Data sources and training results are versioned so a fresh checkout can run
+# without refetching/retraining. DuckDB is a derived warehouse, regenerated on
+# every training run, so keep it out of history.
+/data/warehouse.duckdb
 *.pyc

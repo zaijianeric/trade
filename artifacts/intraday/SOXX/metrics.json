@@ -1,0 +1,17 @@
+{
+  "symbol": "SOXX",
+  "model": "LGBMRegressor",
+  "feature_count": 17,
+  "train_sessions": 520,
+  "backtest_sessions": 104,
+  "backtest_start": "2026-05-28",
+  "backtest_end": "2026-10-23",
+  "bar_return_mae": 0.026492309563837625,
+  "path_price_rmse_pct": 0.03450661415110356,
+  "close_return_mae": 0.027982172232543914,
+  "direction_accuracy": 0.49038461538461536,
+  "high_price_mae_pct": 0.023254792907546992,
+  "low_price_mae_pct": 0.02874833834863559,
+  "forecast_date": "2026-10-26",
+  "last_close": 478.565
+}

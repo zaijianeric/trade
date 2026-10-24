@@ -1,0 +1,17 @@
+{
+  "symbol": "QQQ",
+  "model": "LGBMRegressor",
+  "feature_count": 17,
+  "train_sessions": 1553,
+  "backtest_sessions": 311,
+  "backtest_start": "2025-07-29",
+  "backtest_end": "2026-10-23",
+  "bar_return_mae": 0.008223764617044525,
+  "path_price_rmse_pct": 0.010771456015906,
+  "close_return_mae": 0.009086012491298343,
+  "direction_accuracy": 0.5048231511254019,
+  "high_price_mae_pct": 0.007771029201702477,
+  "low_price_mae_pct": 0.00929659804783854,
+  "forecast_date": "2026-10-26",
+  "last_close": 704.21
+}
