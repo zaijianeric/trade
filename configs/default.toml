@@ -3,7 +3,7 @@
 
 [universe]
 symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD", "SOXX"]
-targets = ["SPY", "QQQ", "IWM"]
+targets = ["SPY", "QQQ", "IWM", "SOXX"]
 
 [data]
 start = "2014-01-01"
