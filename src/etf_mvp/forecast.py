@@ -68,6 +68,97 @@ def build_next_session_targets(prices: pd.DataFrame, symbol: str) -> pd.DataFram
     return targets.reset_index()
 
 
+def compare_backtests_on_common_dates(
+    daily_backtest: pd.DataFrame,
+    intraday_backtest: pd.DataFrame,
+) -> pd.DataFrame:
+    """Compare daily and intraday models on their shared out-of-sample dates."""
+    daily = daily_backtest.copy()
+    minute = intraday_backtest.copy()
+    daily["comparison_date"] = pd.to_datetime(daily["forecast_date"]).dt.normalize()
+    minute["comparison_date"] = pd.to_datetime(minute["session_date"]).dt.normalize()
+    common_dates = pd.Index(daily["comparison_date"]).intersection(
+        minute["comparison_date"]
+    )
+    if common_dates.empty:
+        return pd.DataFrame()
+    daily = daily.loc[daily["comparison_date"].isin(common_dates)]
+    minute = minute.loc[minute["comparison_date"].isin(common_dates)]
+
+    daily_actual_close = daily["next_close_return"]
+    daily_predicted_close = daily["predicted_next_close_return"]
+    rows = [
+        {
+            "model": "日线OHLC基准",
+            "direction_accuracy": float(
+                (daily_actual_close.ge(0) == daily_predicted_close.ge(0)).mean()
+            ),
+            "open_mae": float(
+                np.mean(
+                    np.abs(
+                        daily["next_open_return"]
+                        - daily["predicted_next_open_return"]
+                    )
+                )
+            ),
+            "high_mae": float(
+                np.mean(
+                    np.abs(
+                        daily["next_high_return"]
+                        - daily["predicted_next_high_return"]
+                    )
+                )
+            ),
+            "low_mae": float(
+                np.mean(
+                    np.abs(
+                        daily["next_low_return"]
+                        - daily["predicted_next_low_return"]
+                    )
+                )
+            ),
+            "close_mae": float(
+                np.mean(np.abs(daily_actual_close - daily_predicted_close))
+            ),
+            "sessions": len(daily),
+            "start": daily["comparison_date"].min(),
+            "end": daily["comparison_date"].max(),
+        },
+        {
+            "model": "5分钟序列模型",
+            "direction_accuracy": float(minute["direction_correct"].mean()),
+            "open_mae": float(
+                np.mean(
+                    np.abs(minute["actual_open"] - minute["predicted_open"])
+                    / minute["previous_close"]
+                )
+            ),
+            "high_mae": float(
+                np.mean(
+                    np.abs(minute["actual_high"] - minute["predicted_high"])
+                    / minute["previous_close"]
+                )
+            ),
+            "low_mae": float(
+                np.mean(
+                    np.abs(minute["actual_low"] - minute["predicted_low"])
+                    / minute["previous_close"]
+                )
+            ),
+            "close_mae": float(
+                np.mean(
+                    np.abs(minute["actual_close"] - minute["predicted_close"])
+                    / minute["previous_close"]
+                )
+            ),
+            "sessions": len(minute),
+            "start": minute["comparison_date"].min(),
+            "end": minute["comparison_date"].max(),
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
 def _regressor(random_seed: int):
     try:
         from lightgbm import LGBMRegressor

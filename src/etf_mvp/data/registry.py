@@ -23,6 +23,9 @@ from etf_mvp.data.sources.market import (
 )
 from etf_mvp.data.sources.news import (
     AlphaVantageNewsSource,
+    GdeltNewsSource,
+    GoogleNewsRssSource,
+    HybridNewsSource,
     SfFedNewsSource,
     SyntheticNewsSource,
 )
@@ -46,6 +49,9 @@ REGISTRY: dict[DataKind, dict[str, Factory]] = {
     DataKind.NEWS: {
         "synthetic": lambda seed: SyntheticNewsSource(seed),
         "alphavantage": lambda seed: AlphaVantageNewsSource(),
+        "gdelt": lambda seed: GdeltNewsSource(),
+        "google_news": lambda seed: GoogleNewsRssSource(),
+        "hybrid": lambda seed: HybridNewsSource(),
         "sf_fed": lambda seed: SfFedNewsSource(),
     },
     DataKind.GEOPOLITICAL: {

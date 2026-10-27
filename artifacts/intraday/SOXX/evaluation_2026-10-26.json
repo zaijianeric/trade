@@ -1,0 +1,59 @@
+{
+  "training_data_unchanged": true,
+  "evaluation_feed": "alpaca_iex",
+  "bars": 78,
+  "previous_close": 478.565,
+  "actual": {
+    "open": 482.84,
+    "high": 496.83,
+    "low": 480.25,
+    "close": 492.16,
+    "close_return": 0.028407844284475514,
+    "range_pct": 0.03464524150324404,
+    "five_minute_volatility": 0.002297997495761736
+  },
+  "predicted": {
+    "first": 478.4331219392464,
+    "high": 478.50719235759846,
+    "low": 477.99575612884513,
+    "close": 478.1123435426682,
+    "close_return": -0.000945862019436805,
+    "range_pct": 0.0010686870722959793,
+    "five_minute_volatility": 0.00022649803727304226
+  },
+  "errors": {
+    "open_pct": -0.009208525614605268,
+    "high_pct": -0.03828697803308125,
+    "low_pct": -0.00471042360213319,
+    "close_pct": -0.029353706303912347,
+    "path_mae_pct": 0.02886059512195635,
+    "path_rmse_pct": 0.03026447433070897,
+    "mean_bias_pct": -0.02886059512195635
+  },
+  "shape": {
+    "range_capture_ratio": 0.03084657591998347,
+    "volatility_capture_ratio": 0.09856322197512365,
+    "cumulative_path_correlation": -0.20032140355724198,
+    "incremental_return_correlation": -0.06690228234784285,
+    "cumulative_direction_accuracy": 0.0,
+    "incremental_direction_accuracy": 0.5064935064935064
+  },
+  "historical_backtest": {
+    "sessions": 99,
+    "path_rmse_pct": 0.03331424880253131,
+    "direction_accuracy": 0.5555555555555556,
+    "mean_actual_range_pct": 0.029320703621736537,
+    "mean_predicted_range_pct": 0.0019052091679072258,
+    "mean_range_capture_ratio": 0.0652648757990377,
+    "median_range_capture_ratio": 0.047060441419745275,
+    "mean_actual_abs_close_return": 0.02684295920732002,
+    "mean_predicted_abs_close_return": 0.005094528094197395,
+    "close_amplitude_capture_ratio": 0.189790106778098,
+    "mean_cumulative_path_correlation": 0.0970289082293247,
+    "mean_incremental_return_correlation": -0.003269958849178649
+  },
+  "files": {
+    "actual": "data/intraday/evaluation/SOXX_2026-10-26_5min.parquet",
+    "comparison": "artifacts/intraday/SOXX/comparison_2026-10-26.csv"
+  }
+}

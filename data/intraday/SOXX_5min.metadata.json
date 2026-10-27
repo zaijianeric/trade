@@ -1,0 +1,12 @@
+{
+  "symbol": "SOXX",
+  "provider": "alpaca",
+  "feed": "iex",
+  "timeframe": "5Min",
+  "adjustment": "all",
+  "requested_start": "2018-01-01",
+  "requested_end": null,
+  "retrieved_at": "2026-10-27T09:51:24.475387+00:00",
+  "rows": 85970,
+  "sha256": "1a0ae42eb02f891139924c8f311ee1921b31cee73c44860aaae7ffed5d460efd"
+}

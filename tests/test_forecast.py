@@ -2,7 +2,11 @@ import pandas as pd
 
 from etf_mvp.data.base import FetchRequest
 from etf_mvp.data.sources.market import SyntheticMarketSource
-from etf_mvp.forecast import build_next_session_targets, forecast_next_session
+from etf_mvp.forecast import (
+    build_next_session_targets,
+    compare_backtests_on_common_dates,
+    forecast_next_session,
+)
 
 
 def _synthetic_prices() -> pd.DataFrame:
@@ -54,7 +58,7 @@ def test_forecast_has_consistent_ohlc_and_intraday_path() -> None:
         ["feature", "importance", "local_contribution", "local_share"]
     ).issubset(forecast.feature_importance.columns)
     assert forecast.feature_importance["local_share"].between(0, 1).all()
-    assert forecast.feature_count == 45
+    assert forecast.feature_count == 79
     assert forecast.feature_kinds == ("market",)
 
 
@@ -79,3 +83,41 @@ def test_forecast_accepts_point_in_time_feature_table() -> None:
 
     assert forecast.feature_count == 3
     assert forecast.feature_kinds == ("geopolitical", "market", "news")
+
+
+def test_backtest_comparison_uses_only_common_dates() -> None:
+    daily = pd.DataFrame(
+        {
+            "forecast_date": pd.to_datetime(["2026-01-02", "2026-01-05"]),
+            "next_open_return": [0.01, 0.02],
+            "next_high_return": [0.03, 0.04],
+            "next_low_return": [-0.01, 0.0],
+            "next_close_return": [0.02, -0.01],
+            "predicted_next_open_return": [0.0, 0.01],
+            "predicted_next_high_return": [0.02, 0.03],
+            "predicted_next_low_return": [-0.02, -0.01],
+            "predicted_next_close_return": [0.01, 0.02],
+        }
+    )
+    minute = pd.DataFrame(
+        {
+            "session_date": pd.to_datetime(["2026-01-05", "2026-01-06"]),
+            "previous_close": [100.0, 100.0],
+            "actual_open": [102.0, 101.0],
+            "predicted_open": [101.0, 101.0],
+            "actual_high": [104.0, 102.0],
+            "predicted_high": [103.0, 102.0],
+            "actual_low": [100.0, 99.0],
+            "predicted_low": [99.0, 99.0],
+            "actual_close": [99.0, 101.0],
+            "predicted_close": [102.0, 101.0],
+            "direction_correct": [False, True],
+        }
+    )
+
+    comparison = compare_backtests_on_common_dates(daily, minute)
+
+    assert comparison["sessions"].tolist() == [1, 1]
+    assert comparison["start"].eq(pd.Timestamp("2026-01-05")).all()
+    assert comparison.loc[0, "direction_accuracy"] == 0.0
+    assert comparison.loc[1, "close_mae"] == 0.03

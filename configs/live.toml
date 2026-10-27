@@ -19,6 +19,10 @@ horizon_days = 5
 test_fraction = 0.20
 probability_threshold = 0.50
 random_seed = 42
+tuning_trials = 24
+tuning_folds = 4
+intraday_tuning_trials = 12
+intraday_tuning_folds = 3
 
 [output]
 artifacts_dir = "artifacts"
@@ -60,11 +64,12 @@ SOXX = ["NVDA", "AVGO", "AMD", "QCOM", "TXN", "MU", "AMAT", "LRCX"]
 
 [sources.news]              # 新闻: article sentiment, fetched incrementally
 enabled = true
-provider = "alphavantage"      # synthetic | alphavantage (ALPHAVANTAGE_API_KEY)
+provider = "hybrid"            # SF Fed + GDELT/RSS; 配置密钥后自动加入 Alpha Vantage
 incremental = true
 topics = ["financial_markets", "economy_monetary", "economy_macro", "technology", "energy_transportation"]
 window_days = 30
 max_requests = 20           # free tier is ~25 calls/day; the rest resumes next run
+google_news_days = 30
 
 [sources.geopolitical]
 enabled = true

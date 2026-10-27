@@ -1,0 +1,20 @@
+[
+  {
+    "symbol": "QQQ",
+    "common_sessions": 311,
+    "backtest_start": "2025-07-29",
+    "backtest_end": "2026-10-23",
+    "direction_accuracy_before": 0.5048231511254019,
+    "direction_accuracy_after": 0.5337620578778135,
+    "direction_accuracy_delta": 0.02893890675241162
+  },
+  {
+    "symbol": "SOXX",
+    "common_sessions": 99,
+    "backtest_start": "2026-06-04",
+    "backtest_end": "2026-10-23",
+    "direction_accuracy_before": 0.47474747474747475,
+    "direction_accuracy_after": 0.48484848484848486,
+    "direction_accuracy_delta": 0.01010101010101011
+  }
+]

@@ -31,9 +31,13 @@ __all__ = [
 ]
 
 
-def build_feature_table(bundle: DataBundle, config: AppConfig) -> pd.DataFrame:
+def build_feature_table(
+    bundle: DataBundle, config: AppConfig, enhanced_price: bool = True
+) -> pd.DataFrame:
     """Price features plus every enabled kind available in the bundle."""
-    features = build_price_features(bundle.prices, config.universe.symbols).set_index("date")
+    features = build_price_features(
+        bundle.prices, config.universe.symbols, enhanced=enhanced_price
+    ).set_index("date")
     dates = pd.DatetimeIndex(features.index)
     blocks: list[pd.DataFrame] = [features]
 
@@ -48,7 +52,11 @@ def build_feature_table(bundle: DataBundle, config: AppConfig) -> pd.DataFrame:
         blocks.append(build_fundamental_features(bundle.get(DataKind.FUNDAMENTAL), dates, holdings))
     if config.source(DataKind.NEWS).enabled and DataKind.NEWS in bundle.frames:
         topics = config.source(DataKind.NEWS).options.get("topics", [])
-        blocks.append(build_news_features(bundle.get(DataKind.NEWS), dates, topics))
+        blocks.append(
+            build_news_features(
+                bundle.get(DataKind.NEWS), dates, topics, config.universe.targets
+            )
+        )
     if (
         config.source(DataKind.GEOPOLITICAL).enabled
         and DataKind.GEOPOLITICAL in bundle.frames

@@ -1,5 +1,5 @@
-# Free live profile: real ETF prices from Nasdaq and macro/FOMC data from FRED.
-# Requires only FRED_API_KEY. Fundamental and news sources are disabled.
+# Free live profile: real ETF prices, macro/FOMC data and keyless news sources.
+# Requires only FRED_API_KEY; Alpha Vantage news is optional.
 
 [universe]
 symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD", "SOXX"]
@@ -18,6 +18,10 @@ horizon_days = 5
 test_fraction = 0.20
 probability_threshold = 0.50
 random_seed = 42
+tuning_trials = 24
+tuning_folds = 4
+intraday_tuning_trials = 12
+intraday_tuning_folds = 3
 
 [output]
 artifacts_dir = "artifacts"
@@ -46,8 +50,14 @@ provider = "synthetic"
 
 [sources.news]
 enabled = true
-provider = "sf_fed"
+provider = "hybrid"
 incremental = true
+topics = ["financial_markets", "economy_macro", "technology", "geopolitical"]
+window_days = 30
+max_requests = 20
+gdelt_timespan = "3months"
+gdelt_max_records = 250
+google_news_days = 30
 
 [sources.geopolitical]
 enabled = true

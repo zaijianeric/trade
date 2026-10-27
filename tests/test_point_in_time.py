@@ -80,6 +80,8 @@ def test_news_before_coverage_is_unknown_not_zero() -> None:
     assert features.loc[:"2024-01-12", "news__all__sentiment_5d"].isna().all()
     assert features.loc["2024-01-15", "news__all__sentiment_5d"] == 0.5
     assert features.loc["2024-01-16", "news__economy_macro__sentiment_5d"] == 0.0
+    assert "news__all__sentiment_1d" in features
+    assert "news__all__dispersion_5d" in features
 
 
 def test_collect_writes_each_kind_separately(tmp_path: Path) -> None:

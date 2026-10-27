@@ -18,6 +18,10 @@ horizon_days = 5
 test_fraction = 0.20
 probability_threshold = 0.50
 random_seed = 42
+tuning_trials = 24
+tuning_folds = 4
+intraday_tuning_trials = 12
+intraday_tuning_folds = 3
 
 [output]
 artifacts_dir = "artifacts"

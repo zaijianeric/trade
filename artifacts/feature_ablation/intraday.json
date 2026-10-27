@@ -1,0 +1,34 @@
+[
+  {
+    "symbol": "QQQ",
+    "backtest_start": "2025-07-30",
+    "backtest_end": "2026-10-26",
+    "backtest_sessions": 311,
+    "baseline_feature_count": 18,
+    "enhanced_feature_count": 31,
+    "baseline_direction_accuracy": 0.5337620578778135,
+    "enhanced_direction_accuracy": 0.5241157556270096,
+    "direction_accuracy_delta": -0.009646302250803873,
+    "baseline_path_rmse_pct": 0.01227305854019866,
+    "enhanced_path_rmse_pct": 0.012274698375724372,
+    "path_rmse_delta": 1.6398355257123132e-06,
+    "accepted": false,
+    "selected_feature_set": "baseline"
+  },
+  {
+    "symbol": "SOXX",
+    "backtest_start": "2026-06-05",
+    "backtest_end": "2026-10-26",
+    "backtest_sessions": 99,
+    "baseline_feature_count": 18,
+    "enhanced_feature_count": 31,
+    "baseline_direction_accuracy": 0.5151515151515151,
+    "enhanced_direction_accuracy": 0.5353535353535354,
+    "direction_accuracy_delta": 0.02020202020202022,
+    "baseline_path_rmse_pct": 0.03644452439593973,
+    "enhanced_path_rmse_pct": 0.03542356086007164,
+    "path_rmse_delta": -0.0010209635358680927,
+    "accepted": true,
+    "selected_feature_set": "enhanced"
+  }
+]

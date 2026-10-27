@@ -12,6 +12,9 @@ def test_features_and_forward_target_are_aligned() -> None:
 
     assert features["date"].is_monotonic_increasing
     assert "SPY__return_5d" in features.columns
+    assert "SPY__overnight_gap" in features.columns
+    assert "QQQ__relative_spy_20d" in features.columns
+    assert "market__breadth_positive_1d" in features.columns
     assert target["target"].tail(5).isna().all()
 
     spy = prices.loc[prices["symbol"] == "SPY"].sort_values("date").reset_index(drop=True)

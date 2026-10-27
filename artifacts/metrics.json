@@ -6,11 +6,16 @@
     "test_rows": 502,
     "test_start": "2024-10-16",
     "test_end": "2026-10-16",
-    "accuracy": 0.5358565737051793,
-    "roc_auc": 0.5157008951053496,
-    "brier_score": 0.27903746101907206,
-    "log_loss": 0.7749348825784983,
-    "positive_rate": 0.5756972111553785
+    "accuracy": 0.5756972111553785,
+    "roc_auc": 0.5687736569358481,
+    "brier_score": 0.2527973573447776,
+    "log_loss": 0.7003376686712618,
+    "positive_rate": 0.5756972111553785,
+    "probability_threshold": 0.46,
+    "news_features": "excluded",
+    "feature_set": "enhanced",
+    "parameter_set": "fixed",
+    "model_strategy": "ensemble"
   },
   {
     "symbol": "QQQ",
@@ -19,11 +24,16 @@
     "test_rows": 502,
     "test_start": "2024-10-16",
     "test_end": "2026-10-16",
-    "accuracy": 0.547808764940239,
-    "roc_auc": 0.49707943925233644,
-    "brier_score": 0.27698193845827335,
-    "log_loss": 0.7777419165335546,
-    "positive_rate": 0.5737051792828686
+    "accuracy": 0.5737051792828686,
+    "roc_auc": 0.5137266355140186,
+    "brier_score": 0.24720624339887828,
+    "log_loss": 0.6878366127716701,
+    "positive_rate": 0.5737051792828686,
+    "probability_threshold": 0.46,
+    "news_features": "included",
+    "feature_set": "baseline",
+    "parameter_set": "fixed",
+    "model_strategy": "ensemble"
   },
   {
     "symbol": "IWM",
@@ -32,11 +42,16 @@
     "test_rows": 502,
     "test_start": "2024-10-16",
     "test_end": "2026-10-16",
-    "accuracy": 0.5059760956175299,
-    "roc_auc": 0.5183186911128088,
-    "brier_score": 0.28036766313966405,
-    "log_loss": 0.7668411104006599,
-    "positive_rate": 0.5258964143426295
+    "accuracy": 0.5597609561752988,
+    "roc_auc": 0.6145594601476954,
+    "brier_score": 0.24673970356840047,
+    "log_loss": 0.6865784814480385,
+    "positive_rate": 0.5258964143426295,
+    "probability_threshold": 0.53,
+    "news_features": "excluded",
+    "feature_set": "enhanced",
+    "parameter_set": "fixed",
+    "model_strategy": "ensemble"
   },
   {
     "symbol": "SOXX",
@@ -45,10 +60,15 @@
     "test_rows": 502,
     "test_start": "2024-10-16",
     "test_end": "2026-10-16",
-    "accuracy": 0.5179282868525896,
-    "roc_auc": 0.4947507849293563,
-    "brier_score": 0.2865413105994626,
-    "log_loss": 0.7922501103209176,
-    "positive_rate": 0.5856573705179283
+    "accuracy": 0.5856573705179283,
+    "roc_auc": 0.5918694400837258,
+    "brier_score": 0.23922163815723702,
+    "log_loss": 0.6712907639428686,
+    "positive_rate": 0.5856573705179283,
+    "probability_threshold": 0.46,
+    "news_features": "excluded",
+    "feature_set": "enhanced",
+    "parameter_set": "tuned",
+    "model_strategy": "ensemble"
   }
 ]

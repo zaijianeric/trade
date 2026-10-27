@@ -12,6 +12,9 @@ from etf_mvp.data.sources.geopolitical import parse_gpr_daily
 from etf_mvp.data.sources.macro import MacroSeries, parse_fred_observations
 from etf_mvp.data.sources.market import parse_nasdaq_prices
 from etf_mvp.data.sources.news import (
+    deduplicate_news,
+    parse_gdelt_articles,
+    parse_google_news_rss,
     parse_news_feed,
     parse_sf_fed_sentiment,
     topic_slug,
@@ -187,6 +190,41 @@ def test_news_rate_limit_message_raises() -> None:
 
 def test_topic_slug() -> None:
     assert topic_slug("Financial Markets") == "financial_markets"
+
+
+def test_gdelt_articles_are_point_in_time_and_deduplicated() -> None:
+    payload = {
+        "articles": [
+            {
+                "url": "https://wire.example/chips-rally",
+                "title": "Chipmakers rally on strong growth",
+                "seendate": "20261023T210000Z",
+                "domain": "wire.example",
+            }
+        ]
+    }
+    gdelt = parse_gdelt_articles(payload, "technology", ("QQQ", "SOXX"))
+    duplicated = deduplicate_news(pd.concat([gdelt, gdelt], ignore_index=True))
+
+    assert len(duplicated) == 1
+    assert duplicated.iloc[0]["available_date"] == pd.Timestamp("2026-10-26")
+    assert duplicated.iloc[0]["sentiment"] > 0
+    assert duplicated.iloc[0]["tickers"] == "QQQ,SOXX"
+
+
+def test_google_news_rss_is_point_in_time() -> None:
+    rss = """<?xml version="1.0"?><rss><channel><item>
+      <title>Chipmakers rally on strong growth</title>
+      <link>https://news.google.com/articles/1</link>
+      <pubDate>Fri, 23 Oct 2026 21:00:00 GMT</pubDate>
+      <source>Wire</source>
+    </item></channel></rss>"""
+
+    frame = parse_google_news_rss(rss, "technology", ("QQQ", "SOXX"))
+
+    assert frame.loc[0, "available_date"] == pd.Timestamp("2026-10-26")
+    assert frame.loc[0, "sentiment"] > 0
+    assert frame.loc[0, "source"] == "google_news"
 
 
 def _daily(values: dict[str, float]) -> pd.Series:

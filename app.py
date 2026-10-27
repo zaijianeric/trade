@@ -12,7 +12,11 @@ import streamlit as st
 
 from etf_mvp.config import load_config
 from etf_mvp.data.kinds import DataKind
-from etf_mvp.forecast import NextSessionForecast, forecast_next_session
+from etf_mvp.forecast import (
+    NextSessionForecast,
+    compare_backtests_on_common_dates,
+    forecast_next_session,
+)
 from etf_mvp.interpretation import (
     DEEPSEEK_MODEL,
     ForecastInterpretation,
@@ -21,7 +25,7 @@ from etf_mvp.interpretation import (
     interpret_forecast,
     load_local_env,
 )
-from etf_mvp.intraday import INTRADAY_SYMBOLS
+from etf_mvp.intraday import INTRADAY_SLOTS, INTRADAY_SYMBOLS, roll_intraday_forecast
 from etf_mvp.pipeline import run_pipeline, train_models
 
 ETF_SHORT_NAMES = {
@@ -421,11 +425,96 @@ with market_tab:
         )
         st.plotly_chart(candle_figure, width="stretch")
 
+        minute_forecast = pd.DataFrame()
+        minute_metrics: dict[str, object] = {}
+        minute_backtest = pd.DataFrame()
+        intraday_artifact_dir = config.output.artifacts_dir / "intraday" / selected_symbol
+        intraday_forecast_path = intraday_artifact_dir / "forecast.csv"
+        intraday_metrics_path = intraday_artifact_dir / "metrics.json"
+        intraday_backtest_path = intraday_artifact_dir / "backtest_sessions.csv"
+        intraday_live_forecast_path = intraday_artifact_dir / "live_forecast.csv"
+        intraday_live_status_path = intraday_artifact_dir / "live_status.json"
+        minute_model_available = selected_symbol in INTRADAY_SYMBOLS and all(
+            path.exists()
+            for path in (
+                intraday_forecast_path,
+                intraday_metrics_path,
+                intraday_backtest_path,
+            )
+        )
+        if minute_model_available:
+            minute_forecast, minute_metrics, minute_backtest = load_intraday_results(
+                str(intraday_artifact_dir),
+                intraday_forecast_path.stat().st_mtime_ns,
+                intraday_metrics_path.stat().st_mtime_ns,
+                intraday_backtest_path.stat().st_mtime_ns,
+            )
+            if intraday_live_forecast_path.exists() and intraday_live_status_path.exists():
+                with intraday_live_status_path.open(encoding="utf-8") as status_file:
+                    live_status = json.load(status_file)
+                if live_status.get("session_date") == str(minute_metrics["forecast_date"]):
+                    minute_forecast = pd.read_csv(
+                        intraday_live_forecast_path, parse_dates=["timestamp"]
+                    )
+
+        rolling_bars = pd.DataFrame()
+        actual_intraday = pd.DataFrame()
+        rolling_cutoff = -1
+        rolling_options = [-1, *range(INTRADAY_SLOTS)] if minute_model_available else []
+        if minute_model_available and "predicted_price_q10" in minute_forecast:
+            project_root = Path(config.data.prices_path).parent.parent.parent
+            forecast_date_text = str(minute_metrics["forecast_date"])
+            evaluation_path = (
+                project_root
+                / "data"
+                / "intraday"
+                / "evaluation"
+                / f"{selected_symbol}_{forecast_date_text}_5min.parquet"
+            )
+            if evaluation_path.exists():
+                rolling_bars = pd.read_parquet(evaluation_path).sort_values("slot")
+                if selected_symbol == "SOXX":
+                    actual_intraday = rolling_bars[["timestamp", "slot", "close"]].dropna()
+                    actual_intraday["timestamp"] = pd.to_datetime(
+                        actual_intraday["timestamp"], utc=True
+                    ).dt.tz_convert("America/New_York")
+
         st.divider()
         forecast_header, forecast_action = st.columns([3, 1])
         with forecast_header:
             st.subheader("下一交易日行情预测")
-            st.caption("用历史日线特征预测次日 OHLC，并生成 5 分钟分时情景路径。")
+            if minute_model_available:
+                st.caption(
+                    "使用真实 5 分钟序列模型作为主预测；原日线 OHLC 模型作为基准，"
+                    "在共同样本外交易日比较准确率。"
+                )
+                if intraday_live_status_path.exists():
+                    with intraday_live_status_path.open(encoding="utf-8") as status_file:
+                        live_status = json.load(status_file)
+                    if live_status.get("session_date") == str(minute_metrics["forecast_date"]):
+                        st.caption(
+                            "盘中滚动更新：截至 "
+                            f"{live_status.get('cutoff_time', '-')}（"
+                            f"{live_status.get('updated_at', '')}）。"
+                        )
+            else:
+                st.caption("用历史日线特征预测次日 OHLC，并生成 5 分钟分时情景路径。")
+        if rolling_options:
+            rolling_cutoff = st.select_slider(
+                "盘中滚动预测截止",
+                options=rolling_options,
+                value=-1,
+                format_func=lambda slot: (
+                    "盘前（不使用当日数据）"
+                    if slot < 0
+                    else (pd.Timestamp("09:30") + pd.Timedelta(minutes=5 * slot)).strftime(
+                        "%H:%M"
+                    )
+                ),
+                help="选择时点后，仅用该时点及之前的真实5分钟行情锚定剩余预测。",
+            )
+            if rolling_bars.empty:
+                st.caption("尚未获取当日实时分钟线；当前显示盘前基准预测。")
         forecast_key = (
             f"{selected_symbol}:{prices['date'].max().date().isoformat()}"
         )
@@ -440,7 +529,7 @@ with market_tab:
 
         if st.session_state.get("next_session_forecast_key") == forecast_key:
             try:
-                with st.spinner(f"正在训练 {selected_symbol} 次日 OHLC 模型……"):
+                with st.spinner(f"正在训练 {selected_symbol} 日线基准模型……"):
                     prices_mtime_ns = config.data.prices_path.stat().st_mtime_ns
                     features_mtime_ns = config.data.features_path.stat().st_mtime_ns
                     forecast = load_next_session_forecast(
@@ -453,12 +542,47 @@ with market_tab:
                         5,
                     )
 
+                if minute_model_available:
+                    display_minute_forecast = minute_forecast.copy()
+                    if rolling_cutoff >= 0:
+                        display_minute_forecast = roll_intraday_forecast(
+                            minute_forecast,
+                            rolling_bars.loc[rolling_bars["slot"] <= rolling_cutoff],
+                            float(minute_metrics["last_close"]),
+                        )
+                    intraday_display = display_minute_forecast.rename(
+                        columns={"predicted_price": "close"}
+                    ).copy()
+                    display_last_close = float(minute_metrics["last_close"])
+                    display_open = float(intraday_display["close"].iloc[0])
+                    display_high = float(intraday_display["close"].max())
+                    display_low = float(intraday_display["close"].min())
+                    display_close = float(intraday_display["close"].iloc[-1])
+                    display_forecast_date = pd.Timestamp(
+                        str(minute_metrics["forecast_date"])
+                    )
+                    display_model = str(minute_metrics["model"])
+                    display_feature_count = int(minute_metrics["feature_count"])
+                else:
+                    intraday_display = forecast.intraday.copy()
+                    display_last_close = forecast.last_close
+                    display_open = forecast.predicted_open
+                    display_high = forecast.predicted_high
+                    display_low = forecast.predicted_low
+                    display_close = forecast.predicted_close
+                    display_forecast_date = forecast.forecast_date
+                    display_model = forecast.model_name
+                    display_feature_count = forecast.feature_count
+
                 forecast_columns = st.columns(5)
                 forecast_values = [
-                    ("预测开盘", forecast.predicted_open),
-                    ("预测最高", forecast.predicted_high),
-                    ("预测最低", forecast.predicted_low),
-                    ("预测收盘", forecast.predicted_close),
+                    (
+                        "预测首时点" if minute_model_available else "预测开盘",
+                        display_open,
+                    ),
+                    ("预测最高", display_high),
+                    ("预测最低", display_low),
+                    ("预测收盘", display_close),
                 ]
                 for column, (label, value) in zip(
                     forecast_columns[:4], forecast_values, strict=True
@@ -466,24 +590,54 @@ with market_tab:
                     column.metric(
                         label,
                         f"${value:,.2f}",
-                        f"{value / forecast.last_close - 1:+.2%}",
+                        f"{value / display_last_close - 1:+.2%}",
                     )
                 forecast_columns[4].metric(
                     "预测涨跌幅",
-                    f"{forecast.expected_return:+.2%}",
-                    f"前收 ${forecast.last_close:,.2f}",
+                    f"{display_close / display_last_close - 1:+.2%}",
+                    f"前收 ${display_last_close:,.2f}",
                 )
 
                 st.caption(
-                    f"数据截止 {forecast.as_of_date.date()} · "
-                    f"预测日期 {forecast.forecast_date.date()} · "
-                    f"模型 {forecast.model_name} · {forecast.feature_count} 个因子"
+                    f"预测日期 {display_forecast_date.date()} · "
+                    f"主模型 {display_model} · {display_feature_count} 个分钟序列特征"
+                    if minute_model_available
+                    else (
+                        f"数据截止 {forecast.as_of_date.date()} · "
+                        f"预测日期 {forecast.forecast_date.date()} · "
+                        f"模型 {forecast.model_name} · {forecast.feature_count} 个因子"
+                    )
                 )
 
-                intraday_display = forecast.intraday.copy()
+                if minute_model_available and "predicted_return_q10" in intraday_display:
+                    close_q10 = float(intraday_display["predicted_return_q10"].iloc[-1])
+                    close_q50 = float(intraday_display["predicted_return"].iloc[-1])
+                    close_q90 = float(intraday_display["predicted_return_q90"].iloc[-1])
+                    if close_q10 >= 0:
+                        probability_up = 0.95
+                    elif close_q90 <= 0:
+                        probability_up = 0.05
+                    elif close_q50 >= 0:
+                        probability_up = 1 - (
+                            0.1 + 0.4 * (0 - close_q10) / max(close_q50 - close_q10, 1e-9)
+                        )
+                    else:
+                        probability_up = 1 - (
+                            0.5 + 0.4 * (0 - close_q50) / max(close_q90 - close_q50, 1e-9)
+                        )
+                    probability_columns = st.columns(2)
+                    probability_columns[0].metric("收盘上涨概率参照", f"{probability_up:.1%}")
+                    probability_columns[1].metric(
+                        "预测模式",
+                        "盘中滚动" if rolling_cutoff >= 0 else "盘前预测",
+                    )
+                    st.caption(
+                        "概率仅用于衡量分时趋势离不确定区间有多远；主输出仍是蓝色分时趋势。"
+                    )
+
                 intraday_display["average"] = intraday_display["close"].expanding().mean()
                 intraday_display["change"] = (
-                    intraday_display["close"] / forecast.last_close - 1
+                    intraday_display["close"] / display_last_close - 1
                 )
                 intraday_figure = go.Figure()
                 intraday_figure.add_trace(
@@ -495,13 +649,29 @@ with market_tab:
                         line=dict(color="#1683ff", width=2.5),
                         fill="tozeroy",
                         fillcolor="rgba(22, 131, 255, 0.10)",
-                        name="预测价格",
+                        name=("5分钟模型预测" if minute_model_available else "预测价格"),
                         hovertemplate=(
                             "%{x|%H:%M}<br>预测价 $%{y:.2f}<br>"
                             "较前收 %{customdata:+.2%}<extra></extra>"
                         ),
                     )
                 )
+                if not actual_intraday.empty:
+                    actual_change = actual_intraday["close"] / display_last_close - 1
+                    intraday_figure.add_trace(
+                        go.Scatter(
+                            x=actual_intraday["timestamp"],
+                            y=actual_intraday["close"],
+                            customdata=actual_change,
+                            mode="lines",
+                            line=dict(color="#111827", width=2.2),
+                            name="SOXX 真实5分钟行情（事后）",
+                            hovertemplate=(
+                                "%{x|%H:%M}<br>实际价 $%{y:.2f}<br>"
+                                "较前收 %{customdata:+.2%}<extra></extra>"
+                            ),
+                        )
+                    )
                 intraday_figure.add_trace(
                     go.Scatter(
                         x=intraday_display["timestamp"],
@@ -564,28 +734,34 @@ with market_tab:
                     )
                 )
                 intraday_figure.add_hline(
-                    y=forecast.last_close,
+                    y=display_last_close,
                     line_dash="dash",
                     line_color="#ef4444",
                     opacity=0.65,
-                    annotation_text=f"前收 ${forecast.last_close:.2f}",
+                    annotation_text=f"前收 ${display_last_close:.2f}",
                     annotation_position="bottom right",
                 )
                 visible_min = min(
                     intraday_display["close"].min(),
                     intraday_display["average"].min(),
-                    forecast.last_close,
+                    actual_intraday["close"].min()
+                    if not actual_intraday.empty
+                    else float("inf"),
+                    display_last_close,
                 )
                 visible_max = max(
                     intraday_display["close"].max(),
                     intraday_display["average"].max(),
-                    forecast.last_close,
+                    actual_intraday["close"].max()
+                    if not actual_intraday.empty
+                    else float("-inf"),
+                    display_last_close,
                 )
-                price_span = max(visible_max - visible_min, forecast.last_close * 0.002)
+                price_span = max(visible_max - visible_min, display_last_close * 0.002)
                 y_min = visible_min - price_span * 0.12
                 y_max = visible_max + price_span * 0.12
-                change_min = y_min / forecast.last_close - 1
-                change_max = y_max / forecast.last_close - 1
+                change_min = y_min / display_last_close - 1
+                change_max = y_max / display_last_close - 1
                 percent_ticks = [
                     change_min + (change_max - change_min) * index / 4
                     for index in range(5)
@@ -594,8 +770,12 @@ with market_tab:
                     title=dict(
                         text=(
                             f"{etf_display_name(selected_symbol)} · "
-                            f"{forecast.forecast_date.date()} "
-                            "预测分时走势"
+                            f"{display_forecast_date.date()} "
+                            + (
+                                "5分钟模型预测"
+                                if minute_model_available
+                                else "日线OHLC情景路径"
+                            )
                         ),
                         x=0,
                         xanchor="left",
@@ -636,74 +816,170 @@ with market_tab:
                     margin=dict(l=10, r=65, t=95, b=10),
                 )
                 st.plotly_chart(intraday_figure, width="stretch")
-                st.caption(
-                    "红点和绿点分别标识预测最高价与最低价；其分钟位置由情景路径确定，"
-                    "用于展示次日 OHLC 区间，不代表模型能精确预测极值发生时刻。"
-                )
-
-                st.markdown("#### 扩展窗口样本外回测")
-                st.caption(
-                    "取历史末段 20% 样本并按时间拆成 5 折；每折只使用该折开始日期之前的"
-                    "数据训练，再预测后续交易日，避免随机切分和未来数据泄漏。"
-                )
-                quality_columns = st.columns(4)
-                quality_columns[0].metric(
-                    "方向准确率", f"{forecast.direction_accuracy:.1%}"
-                )
-                quality_columns[1].metric(
-                    "开盘收益 MAE", f"{forecast.open_return_mae:.2%}"
-                )
-                quality_columns[2].metric(
-                    "高/低收益 MAE",
-                    f"{forecast.high_return_mae:.2%} / {forecast.low_return_mae:.2%}",
-                )
-                quality_columns[3].metric(
-                    "收盘收益 MAE", f"{forecast.close_return_mae:.2%}"
-                )
-
-                backtest_display = forecast.backtest.tail(160)
-                backtest_figure = go.Figure()
-                backtest_figure.add_trace(
-                    go.Scatter(
-                        x=backtest_display["forecast_date"],
-                        y=backtest_display["actual_close"],
-                        mode="lines",
-                        line=dict(color="#111827", width=2),
-                        name="实际收盘",
+                if minute_model_available:
+                    st.caption(
+                        "红点和绿点标识 5 分钟序列模型输出路径中的最高与最低预测值；"
+                        "不再使用随机 OHLC 情景尖点。"
                     )
-                )
-                backtest_figure.add_trace(
-                    go.Scatter(
-                        x=backtest_display["forecast_date"],
-                        y=backtest_display["predicted_close"],
-                        mode="lines",
-                        line=dict(color="#1683ff", width=1.8, dash="dot"),
-                        name="样本外预测收盘",
+                    if not actual_intraday.empty:
+                        st.caption(
+                            "黑线为 SOXX 真实 5 分钟收盘价，仅用于事后对照；"
+                            "不参与该日盘前预测训练。"
+                        )
+                else:
+                    st.caption(
+                        "红点和绿点分别标识预测最高价与最低价；其分钟位置由情景路径确定，"
+                        "用于展示次日 OHLC 区间，不代表模型能精确预测极值发生时刻。"
                     )
-                )
-                backtest_figure.update_layout(
-                    xaxis_title="预测交易日",
-                    yaxis_title="收盘价",
-                    hovermode="x unified",
-                    legend=dict(orientation="h", y=1.12, x=0),
-                    height=350,
-                    margin=dict(l=10, r=10, t=50, b=10),
-                )
-                st.plotly_chart(backtest_figure, width="stretch")
-                st.caption(
-                    f"回测样本 {len(forecast.backtest)} 个交易日 · "
-                    f"{forecast.backtest['forecast_date'].min().date()} 至 "
-                    f"{forecast.backtest['forecast_date'].max().date()} · "
-                    "图中展示最近 160 个样本外预测。"
-                )
-                st.download_button(
-                    "下载滚动回测 CSV",
-                    data=forecast.backtest.to_csv(index=False).encode("utf-8"),
-                    file_name=f"{selected_symbol}_walk_forward_backtest.csv",
-                    mime="text/csv",
-                )
 
-                st.markdown("#### 可解释化预测")
+                st.markdown("#### 共同样本外回测比较")
+                if minute_model_available:
+                    comparison = compare_backtests_on_common_dates(
+                        forecast.backtest, minute_backtest
+                    )
+                    if comparison.empty:
+                        st.warning("两套模型没有共同的样本外交易日，暂时无法直接比较。")
+                    else:
+                        daily_row = comparison.loc[
+                            comparison["model"] == "日线OHLC基准"
+                        ].iloc[0]
+                        minute_row = comparison.loc[
+                            comparison["model"] == "5分钟序列模型"
+                        ].iloc[0]
+                        direction_delta = (
+                            minute_row["direction_accuracy"]
+                            - daily_row["direction_accuracy"]
+                        )
+                        close_mae_delta = (
+                            minute_row["close_mae"] - daily_row["close_mae"]
+                        )
+                        comparison_columns = st.columns(4)
+                        comparison_columns[0].metric(
+                            "分钟方向准确率",
+                            f"{minute_row['direction_accuracy']:.1%}",
+                            f"较日线 {direction_delta:+.1%}",
+                        )
+                        comparison_columns[1].metric(
+                            "分钟收盘 MAE",
+                            f"{minute_row['close_mae']:.2%}",
+                            f"较日线 {close_mae_delta:+.2%}",
+                            delta_color="inverse",
+                        )
+                        comparison_columns[2].metric(
+                            "分钟高/低 MAE",
+                            f"{minute_row['high_mae']:.2%} / {minute_row['low_mae']:.2%}",
+                        )
+                        comparison_columns[3].metric(
+                            "共同回测日", f"{int(minute_row['sessions']):,}"
+                        )
+
+                        comparison_display = comparison.copy()
+                        comparison_display["模型"] = comparison_display.pop("model")
+                        for source, target in (
+                            ("direction_accuracy", "方向准确率"),
+                            ("open_mae", "开盘MAE"),
+                            ("high_mae", "最高MAE"),
+                            ("low_mae", "最低MAE"),
+                            ("close_mae", "收盘MAE"),
+                        ):
+                            comparison_display[target] = comparison_display.pop(source).map(
+                                lambda value: f"{value:.2%}"
+                            )
+                        comparison_display["回测日"] = comparison_display.pop("sessions")
+                        comparison_display["共同区间"] = (
+                            comparison_display.pop("start").dt.strftime("%Y-%m-%d")
+                            + " — "
+                            + comparison_display.pop("end").dt.strftime("%Y-%m-%d")
+                        )
+                        st.dataframe(
+                            comparison_display,
+                            hide_index=True,
+                            width="stretch",
+                        )
+
+                        daily_reference = forecast.backtest[
+                            ["forecast_date", "predicted_close"]
+                        ].rename(
+                            columns={
+                                "forecast_date": "date",
+                                "predicted_close": "daily_predicted_close",
+                            }
+                        )
+                        minute_reference = minute_backtest[
+                            ["session_date", "actual_close", "predicted_close"]
+                        ].rename(
+                            columns={
+                                "session_date": "date",
+                                "predicted_close": "minute_predicted_close",
+                            }
+                        )
+                        aligned_backtest = minute_reference.merge(
+                            daily_reference, on="date", how="inner"
+                        ).tail(160)
+                        backtest_figure = go.Figure()
+                        for column, name, color, dash in (
+                            ("actual_close", "实际收盘", "#111827", "solid"),
+                            (
+                                "minute_predicted_close",
+                                "5分钟模型",
+                                "#7c3aed",
+                                "dot",
+                            ),
+                            (
+                                "daily_predicted_close",
+                                "日线OHLC基准",
+                                "#1683ff",
+                                "dash",
+                            ),
+                        ):
+                            backtest_figure.add_trace(
+                                go.Scatter(
+                                    x=aligned_backtest["date"],
+                                    y=aligned_backtest[column],
+                                    mode="lines",
+                                    line=dict(color=color, width=1.8, dash=dash),
+                                    name=name,
+                                )
+                            )
+                        backtest_figure.update_layout(
+                            title="共同交易日预测收盘比较（最近160日）",
+                            xaxis_title="预测交易日",
+                            yaxis_title="收盘价",
+                            hovermode="x unified",
+                            legend=dict(orientation="h", y=1.12, x=0),
+                            height=350,
+                            margin=dict(l=10, r=10, t=55, b=10),
+                        )
+                        st.plotly_chart(backtest_figure, width="stretch")
+                        st.caption(
+                            "两套模型仅在共同样本外交易日比较；MAE 越低越好，"
+                            "方向准确率越高越好。"
+                        )
+                else:
+                    st.caption(
+                        "取历史末段 20% 样本并按时间拆成 5 折；每折只使用该折开始日期"
+                        "之前的数据训练，再预测后续交易日。"
+                    )
+                    quality_columns = st.columns(4)
+                    quality_columns[0].metric(
+                        "方向准确率", f"{forecast.direction_accuracy:.1%}"
+                    )
+                    quality_columns[1].metric(
+                        "开盘收益 MAE", f"{forecast.open_return_mae:.2%}"
+                    )
+                    quality_columns[2].metric(
+                        "高/低收益 MAE",
+                        f"{forecast.high_return_mae:.2%} / {forecast.low_return_mae:.2%}",
+                    )
+                    quality_columns[3].metric(
+                        "收盘收益 MAE", f"{forecast.close_return_mae:.2%}"
+                    )
+
+                st.markdown(
+                    "#### 日线基准可解释化"
+                    if minute_model_available
+                    else "#### 可解释化预测"
+                )
                 st.caption(
                     "影响占比是 LLM 对技术、宏观、地缘与新闻的情境性解释，"
                     "不是模型因果贡献或 SHAP 值；卡片内的局部影响来自收盘收益模型的"
@@ -826,153 +1102,57 @@ with market_tab:
                         st.info("点击“生成 LLM 解读”后调用 DeepSeek；结果缓存 30 分钟。")
 
                 interval_left, interval_right = st.columns(2)
-                interval_left.metric(
-                    "预测收盘区间",
-                    f"${forecast.close_lower:,.2f} – ${forecast.close_upper:,.2f}",
-                )
-                interval_right.metric(
-                    "回测覆盖区间",
-                    f"{forecast.backtest['forecast_date'].min().date()} – "
-                    f"{forecast.backtest['forecast_date'].max().date()}",
-                )
-                st.warning(
-                    "分时折线是由预测 OHLC 与近 20 日波动率约束生成的情景路径，"
-                    "不是分钟级模型预测；上方回测仅验证次日 OHLC 模型。"
-                    "预测日期按工作日估算，暂未处理美股节假日。"
-                )
+                if minute_model_available:
+                    interval_left.metric(
+                        "分钟预测价格区间",
+                        f"${display_low:,.2f} – ${display_high:,.2f}",
+                    )
+                    interval_right.metric(
+                        "分钟回测覆盖区间",
+                        f"{minute_metrics['backtest_start']} – "
+                        f"{minute_metrics['backtest_end']}",
+                    )
+                    st.info(
+                        "主分时图和顶部 OHLC 均来自 5 分钟序列模型；"
+                        "日线 OHLC 模型仅作为准确率基准及解释参照。"
+                    )
+                    download_frame = minute_forecast
+                    download_suffix = "minute_forecast"
+                else:
+                    interval_left.metric(
+                        "预测收盘区间",
+                        f"${forecast.close_lower:,.2f} – ${forecast.close_upper:,.2f}",
+                    )
+                    interval_right.metric(
+                        "回测覆盖区间",
+                        f"{forecast.backtest['forecast_date'].min().date()} – "
+                        f"{forecast.backtest['forecast_date'].max().date()}",
+                    )
+                    st.warning(
+                        "分时折线是由预测 OHLC 与近 20 日波动率约束生成的情景路径，"
+                        "不是分钟级模型预测；预测日期按工作日估算。"
+                    )
+                    download_frame = forecast.intraday
+                    download_suffix = "scenario_forecast"
                 st.download_button(
                     "下载预测分时数据 CSV",
-                    data=forecast.intraday.to_csv(index=False).encode("utf-8"),
+                    data=download_frame.to_csv(index=False).encode("utf-8"),
                     file_name=(
-                        f"{selected_symbol}_{forecast.forecast_date.date()}_forecast.csv"
+                        f"{selected_symbol}_{display_forecast_date.date()}_"
+                        f"{download_suffix}.csv"
                     ),
                     mime="text/csv",
                 )
             except Exception as error:
                 st.error(f"行情预测生成失败：{error}")
         else:
-            st.info("点击“生成预测”后，页面会训练次日 OHLC 模型并绘制分时折线。")
-
-        if selected_symbol in INTRADAY_SYMBOLS:
-            st.divider()
-            st.subheader(f"{etf_display_name(selected_symbol)} · 5分钟序列模型")
-            st.caption(
-                "使用该 ETF 自身的多年常规交易时段 5 分钟数据独立训练，"
-                "与日线 OHLC 情景模型完全分离。"
-            )
-            intraday_artifact_dir = (
-                config.output.artifacts_dir / "intraday" / selected_symbol
-            )
-            intraday_forecast_path = intraday_artifact_dir / "forecast.csv"
-            intraday_metrics_path = intraday_artifact_dir / "metrics.json"
-            intraday_backtest_path = intraday_artifact_dir / "backtest_sessions.csv"
-            if not all(
-                path.exists()
-                for path in (
-                    intraday_forecast_path,
-                    intraday_metrics_path,
-                    intraday_backtest_path,
-                )
-            ):
+            if minute_model_available:
                 st.info(
-                    "尚未生成真实分钟模型。配置 ALPACA_API_KEY_ID 与 "
-                    "ALPACA_API_SECRET_KEY 后运行："
-                )
-                st.code(
-                    "uv run etf-mvp --config configs/free.toml intraday-run "
-                    "--start 2018-01-01 --feed iex"
+                    "点击“生成预测”后，将加载 5 分钟模型主预测，并训练日线 OHLC 基准"
+                    "用于共同样本外比较。"
                 )
             else:
-                minute_forecast, minute_metrics, minute_backtest = (
-                    load_intraday_results(
-                        str(intraday_artifact_dir),
-                        intraday_forecast_path.stat().st_mtime_ns,
-                        intraday_metrics_path.stat().st_mtime_ns,
-                        intraday_backtest_path.stat().st_mtime_ns,
-                    )
-                )
-                minute_columns = st.columns(4)
-                minute_columns[0].metric(
-                    "分钟方向准确率",
-                    f"{float(minute_metrics['direction_accuracy']):.1%}",
-                )
-                minute_columns[1].metric(
-                    "分钟路径 RMSE",
-                    f"{float(minute_metrics['path_price_rmse_pct']):.2%}",
-                )
-                minute_columns[2].metric(
-                    "收盘收益 MAE",
-                    f"{float(minute_metrics['close_return_mae']):.2%}",
-                )
-                minute_columns[3].metric(
-                    "回测交易日", f"{int(minute_metrics['backtest_sessions']):,}"
-                )
-
-                minute_figure = go.Figure()
-                minute_figure.add_trace(
-                    go.Scatter(
-                        x=minute_forecast["timestamp"],
-                        y=minute_forecast["predicted_price"],
-                        mode="lines",
-                        line=dict(color="#7c3aed", width=2.5),
-                        name="分钟模型预测",
-                    )
-                )
-                last_close = float(minute_metrics["last_close"])
-                minute_figure.add_hline(
-                    y=last_close,
-                    line_dash="dash",
-                    line_color="#ef4444",
-                    annotation_text=f"前收 ${last_close:.2f}",
-                )
-                minute_figure.update_layout(
-                    title=(
-                        f"{etf_display_name(selected_symbol)} · "
-                        f"{minute_metrics['forecast_date']} 分钟模型预测"
-                    ),
-                    xaxis_title="美东时间",
-                    yaxis_title="预测价格",
-                    hovermode="x unified",
-                    height=420,
-                    margin=dict(l=10, r=10, t=55, b=10),
-                )
-                st.plotly_chart(minute_figure, width="stretch")
-
-                minute_backtest_display = minute_backtest.tail(160)
-                minute_backtest_figure = go.Figure()
-                minute_backtest_figure.add_trace(
-                    go.Scatter(
-                        x=minute_backtest_display["session_date"],
-                        y=minute_backtest_display["actual_close"],
-                        mode="lines",
-                        name="实际收盘",
-                        line=dict(color="#111827", width=2),
-                    )
-                )
-                minute_backtest_figure.add_trace(
-                    go.Scatter(
-                        x=minute_backtest_display["session_date"],
-                        y=minute_backtest_display["predicted_close"],
-                        mode="lines",
-                        name="分钟模型预测收盘",
-                        line=dict(color="#7c3aed", width=1.8, dash="dot"),
-                    )
-                )
-                minute_backtest_figure.update_layout(
-                    title="分钟模型独立走步回测（最近160日）",
-                    xaxis_title="交易日",
-                    yaxis_title="收盘价",
-                    hovermode="x unified",
-                    height=350,
-                    margin=dict(l=10, r=10, t=55, b=10),
-                )
-                st.plotly_chart(minute_backtest_figure, width="stretch")
-                st.caption(
-                    f"模型 {minute_metrics['model']} · "
-                    f"{int(minute_metrics['feature_count'])} 个分钟序列特征 · "
-                    f"回测 {minute_metrics['backtest_start']} 至 "
-                    f"{minute_metrics['backtest_end']}。"
-                )
+                st.info("点击“生成预测”后，页面会训练次日 OHLC 模型并绘制分时折线。")
 
         st.divider()
         compare_symbols = st.multiselect(

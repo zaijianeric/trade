@@ -74,6 +74,10 @@ class ModelConfig:
     test_fraction: float
     probability_threshold: float
     random_seed: int
+    tuning_trials: int = 4
+    tuning_folds: int = 2
+    intraday_tuning_trials: int = 3
+    intraday_tuning_folds: int = 2
 
 
 @dataclass(frozen=True)

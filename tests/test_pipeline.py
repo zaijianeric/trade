@@ -34,6 +34,9 @@ def test_end_to_end_synthetic_pipeline(tmp_path: Path) -> None:
     assert (tmp_path / "warehouse.duckdb").exists()
     assert (tmp_path / "artifacts" / "metrics.json").exists()
     assert (tmp_path / "artifacts" / "models" / "SPY.joblib").exists()
+    assert (tmp_path / "artifacts" / "rolling_tuning" / "daily.json").exists()
+    assert (tmp_path / "artifacts" / "feature_ablation" / "news.json").exists()
+    assert (tmp_path / "artifacts" / "data_quality" / "news.json").exists()
 
 
 def test_pipeline_reports_importance_by_kind(tmp_path: Path) -> None:

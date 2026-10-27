@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import time
 from pathlib import Path
 
 from etf_mvp.config import AppConfig, load_config
@@ -11,6 +12,8 @@ from etf_mvp.interpretation import load_local_env
 from etf_mvp.intraday import (
     IntradayPaths,
     fetch_intraday_symbols,
+    prepare_intraday_symbols,
+    refresh_live_intraday_forecasts,
     run_intraday_pipeline,
     train_intraday_symbols,
 )
@@ -83,6 +86,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "intraday-train", help="Train separate QQQ and SOXX models from stored 5-minute bars"
     )
+    poll_parser = subparsers.add_parser(
+        "intraday-poll",
+        help="During the NYSE session, refresh 5-minute bars and rolling forecasts",
+    )
+    poll_parser.add_argument("--feed", choices=("sip", "iex"), default="iex")
+    poll_parser.add_argument(
+        "--interval", type=int, default=300, help="Polling interval in seconds"
+    )
+    poll_parser.add_argument("--once", action="store_true", help="Run one refresh and exit")
+    quality_parser = subparsers.add_parser(
+        "intraday-quality", help="Audit and clean stored QQQ and SOXX 5-minute bars"
+    )
+    quality_parser.add_argument("--feed", choices=("sip", "iex"), default="iex")
     return parser
 
 
@@ -109,8 +125,40 @@ def main() -> None:
                 for symbol, frame in frames.items():
                     print(f"{symbol:<4} {len(frame):>9,} five-minute bars")
                 return
+            if args.command == "intraday-quality":
+                summaries = prepare_intraday_symbols(paths, feed=args.feed)
+                for symbol, summary in summaries.items():
+                    print(
+                        f"{symbol}: quality={summary['quality_score']:.1f}, "
+                        f"eligible_sessions={summary['eligible_sessions']:,}"
+                    )
+                return
+            if args.command == "intraday-poll":
+                if args.interval < 60:
+                    raise SystemExit("--interval must be at least 60 seconds")
+                while True:
+                    updates = refresh_live_intraday_forecasts(paths, feed=args.feed)
+                    if updates.get("status") == "market_closed":
+                        print("NYSE is closed; no intraday refresh performed")
+                    else:
+                        for symbol, status in updates.items():
+                            if symbol == "status":
+                                continue
+                            print(
+                                f"{symbol}: {status['status']}, "
+                                f"bars={status.get('observed_bars', 0)}, "
+                                f"cutoff={status.get('cutoff_time', '-') }"
+                            )
+                    if args.once:
+                        return
+                    time.sleep(args.interval)
             if args.command == "intraday-train":
-                results = train_intraday_symbols(paths, config.model.random_seed)
+                results = train_intraday_symbols(
+                    paths,
+                    config.model.random_seed,
+                    tuning_trials=config.model.intraday_tuning_trials,
+                    tuning_folds=config.model.intraday_tuning_folds,
+                )
             else:
                 results = run_intraday_pipeline(
                     paths,
@@ -118,6 +166,8 @@ def main() -> None:
                     end=args.end,
                     feed=args.feed,
                     random_seed=config.model.random_seed,
+                    tuning_trials=config.model.intraday_tuning_trials,
+                    tuning_folds=config.model.intraday_tuning_folds,
                 )
         except (FileNotFoundError, RuntimeError, ValueError) as error:
             raise SystemExit(str(error)) from None
