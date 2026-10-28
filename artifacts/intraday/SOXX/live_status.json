@@ -1,0 +1,11 @@
+{
+  "status": "updated",
+  "symbol": "SOXX",
+  "session_date": "2026-10-27",
+  "updated_at": "2026-10-27T15:39:57.496300+00:00",
+  "observed_bars": 26,
+  "cutoff_slot": 25,
+  "cutoff_time": "11:35",
+  "forecast_path": "/Users/zaijian/project/trade/artifacts/intraday/SOXX/live_forecast.csv",
+  "bars_path": "/Users/zaijian/project/trade/data/intraday/evaluation/SOXX_2026-10-27_5min.parquet"
+}

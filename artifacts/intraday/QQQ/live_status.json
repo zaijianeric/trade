@@ -1,0 +1,11 @@
+{
+  "status": "updated",
+  "symbol": "QQQ",
+  "session_date": "2026-10-27",
+  "updated_at": "2026-10-27T15:39:55.142110+00:00",
+  "observed_bars": 26,
+  "cutoff_slot": 25,
+  "cutoff_time": "11:35",
+  "forecast_path": "/Users/zaijian/project/trade/artifacts/intraday/QQQ/live_forecast.csv",
+  "bars_path": "/Users/zaijian/project/trade/data/intraday/evaluation/QQQ_2026-10-27_5min.parquet"
+}

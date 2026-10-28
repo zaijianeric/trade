@@ -29,6 +29,22 @@ uv run streamlit run app.py
 
 侧栏的“项目说明”页面展示当前系统的数据、特征、模型、评估、产物和工程边界，便于快速理解架构与后续扩展方向。
 
+## 盘中轮询（QQQ / SOXX）
+
+看板本身只读产物，不抓行情。美股开盘期间需要另开一个终端启动轮询，每 5 分钟拉取 QQQ、SOXX 的 5 分钟 K 线，把已发生的行情固定为真实值并滚动更新当日剩余预测路径：
+
+```bash
+uv run etf-mvp --config configs/free.toml intraday-poll --feed iex
+```
+
+- 仅在 NYSE 交易时段实际抓取，收盘后每轮只打印 `market_closed`
+- 启动前当日分钟模型产物必须已存在：`artifacts/intraday/<symbol>/forecast.csv` 和 `metrics.json`，且 `metrics.json` 的 `forecast_date` 等于当日；否则该标的返回 `forecast_date_mismatch`，需先运行 `intraday-run` 或 `intraday-train`
+- 每轮写入 `data/intraday/evaluation/<symbol>_<date>_5min.parquet`、`artifacts/intraday/<symbol>/live_forecast.csv` 和 `live_status.json`
+- 看板行情页会自动读取盘中文件，存在观测 K 线后可按截止时点滚动查看剩余路径
+- 只支持 QQQ 和 SOXX；其他 ETF 属于日线模型，不走该轮询
+
+只跑一次（用于 cron、launchd 或手动检查）改用 `--once`，见下文“使用真实数据源”。
+
 ## 数据层
 
 数据处理已抽成独立的 `etf_mvp.data` 包，按**数据种类**组织，每类数据有统一的结构和独立的数据源：

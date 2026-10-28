@@ -432,7 +432,6 @@ with market_tab:
         intraday_forecast_path = intraday_artifact_dir / "forecast.csv"
         intraday_metrics_path = intraday_artifact_dir / "metrics.json"
         intraday_backtest_path = intraday_artifact_dir / "backtest_sessions.csv"
-        intraday_live_forecast_path = intraday_artifact_dir / "live_forecast.csv"
         intraday_live_status_path = intraday_artifact_dir / "live_status.json"
         minute_model_available = selected_symbol in INTRADAY_SYMBOLS and all(
             path.exists()
@@ -443,19 +442,15 @@ with market_tab:
             )
         )
         if minute_model_available:
+            # Keep the premarket forecast as the base for every re-roll. The live
+            # forecast artifact is already anchored to the latest bars; feeding it
+            # back into roll_intraday_forecast would ignore older cutoff choices.
             minute_forecast, minute_metrics, minute_backtest = load_intraday_results(
                 str(intraday_artifact_dir),
                 intraday_forecast_path.stat().st_mtime_ns,
                 intraday_metrics_path.stat().st_mtime_ns,
                 intraday_backtest_path.stat().st_mtime_ns,
             )
-            if intraday_live_forecast_path.exists() and intraday_live_status_path.exists():
-                with intraday_live_status_path.open(encoding="utf-8") as status_file:
-                    live_status = json.load(status_file)
-                if live_status.get("session_date") == str(minute_metrics["forecast_date"]):
-                    minute_forecast = pd.read_csv(
-                        intraday_live_forecast_path, parse_dates=["timestamp"]
-                    )
 
         rolling_bars = pd.DataFrame()
         actual_intraday = pd.DataFrame()
@@ -478,6 +473,9 @@ with market_tab:
                     actual_intraday["timestamp"] = pd.to_datetime(
                         actual_intraday["timestamp"], utc=True
                     ).dt.tz_convert("America/New_York")
+        latest_observed_slot = (
+            int(rolling_bars["slot"].max()) if not rolling_bars.empty else -1
+        )
 
         st.divider()
         forecast_header, forecast_action = st.columns([3, 1])
@@ -493,9 +491,10 @@ with market_tab:
                         live_status = json.load(status_file)
                     if live_status.get("session_date") == str(minute_metrics["forecast_date"]):
                         st.caption(
-                            "盘中滚动更新：截至 "
+                            "轮询最新数据：截至 "
                             f"{live_status.get('cutoff_time', '-')}（"
                             f"{live_status.get('updated_at', '')}）。"
+                            "拖动下方截止时点可回看更早的滚动结果。"
                         )
             else:
                 st.caption("用历史日线特征预测次日 OHLC，并生成 5 分钟分时情景路径。")
@@ -503,13 +502,13 @@ with market_tab:
             rolling_cutoff = st.select_slider(
                 "盘中滚动预测截止",
                 options=rolling_options,
-                value=-1,
+                value=latest_observed_slot,
                 format_func=lambda slot: (
                     "盘前（不使用当日数据）"
                     if slot < 0
-                    else (pd.Timestamp("09:30") + pd.Timedelta(minutes=5 * slot)).strftime(
-                        "%H:%M"
-                    )
+                    else (
+                        pd.Timestamp("09:30") + pd.Timedelta(minutes=5 * int(slot))
+                    ).strftime("%H:%M")
                 ),
                 help="选择时点后，仅用该时点及之前的真实5分钟行情锚定剩余预测。",
             )
@@ -574,6 +573,13 @@ with market_tab:
                     display_model = forecast.model_name
                     display_feature_count = forecast.feature_count
 
+                if actual_intraday.empty or rolling_cutoff < 0:
+                    display_actual_intraday = actual_intraday.iloc[0:0]
+                else:
+                    display_actual_intraday = actual_intraday.loc[
+                        actual_intraday["slot"] <= rolling_cutoff
+                    ]
+
                 forecast_columns = st.columns(5)
                 forecast_values = [
                     (
@@ -627,9 +633,14 @@ with market_tab:
                         )
                     probability_columns = st.columns(2)
                     probability_columns[0].metric("收盘上涨概率参照", f"{probability_up:.1%}")
+                    forecast_mode = (
+                        str(display_minute_forecast["forecast_mode"].iloc[-1])
+                        if "forecast_mode" in display_minute_forecast
+                        else "premarket"
+                    )
                     probability_columns[1].metric(
                         "预测模式",
-                        "盘中滚动" if rolling_cutoff >= 0 else "盘前预测",
+                        "盘中滚动" if forecast_mode == "rolling" else "盘前预测",
                     )
                     st.caption(
                         "概率仅用于衡量分时趋势离不确定区间有多远；主输出仍是蓝色分时趋势。"
@@ -656,16 +667,16 @@ with market_tab:
                         ),
                     )
                 )
-                if not actual_intraday.empty:
-                    actual_change = actual_intraday["close"] / display_last_close - 1
+                if not display_actual_intraday.empty:
+                    actual_change = display_actual_intraday["close"] / display_last_close - 1
                     intraday_figure.add_trace(
                         go.Scatter(
-                            x=actual_intraday["timestamp"],
-                            y=actual_intraday["close"],
+                            x=display_actual_intraday["timestamp"],
+                            y=display_actual_intraday["close"],
                             customdata=actual_change,
                             mode="lines",
                             line=dict(color="#111827", width=2.2),
-                            name="SOXX 真实5分钟行情（事后）",
+                            name=f"{selected_symbol} 真实5分钟行情",
                             hovertemplate=(
                                 "%{x|%H:%M}<br>实际价 $%{y:.2f}<br>"
                                 "较前收 %{customdata:+.2%}<extra></extra>"
@@ -744,16 +755,16 @@ with market_tab:
                 visible_min = min(
                     intraday_display["close"].min(),
                     intraday_display["average"].min(),
-                    actual_intraday["close"].min()
-                    if not actual_intraday.empty
+                    display_actual_intraday["close"].min()
+                    if not display_actual_intraday.empty
                     else float("inf"),
                     display_last_close,
                 )
                 visible_max = max(
                     intraday_display["close"].max(),
                     intraday_display["average"].max(),
-                    actual_intraday["close"].max()
-                    if not actual_intraday.empty
+                    display_actual_intraday["close"].max()
+                    if not display_actual_intraday.empty
                     else float("-inf"),
                     display_last_close,
                 )
@@ -821,10 +832,10 @@ with market_tab:
                         "红点和绿点标识 5 分钟序列模型输出路径中的最高与最低预测值；"
                         "不再使用随机 OHLC 情景尖点。"
                     )
-                    if not actual_intraday.empty:
+                    if not display_actual_intraday.empty:
                         st.caption(
-                            "黑线为 SOXX 真实 5 分钟收盘价，仅用于事后对照；"
-                            "不参与该日盘前预测训练。"
+                            f"黑线为 {selected_symbol} 截至所选时点的真实 5 分钟收盘价，"
+                            "仅用于事后对照；不参与该日盘前预测训练。"
                         )
                 else:
                     st.caption(
