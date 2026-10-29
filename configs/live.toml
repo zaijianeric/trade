@@ -1,5 +1,5 @@
 # Live profile: real providers for every kind. Needs network and these env vars:
-#   TIINGO_API_KEY, FRED_API_KEY, ALPHAVANTAGE_API_KEY, SEC_USER_AGENT
+#   ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, FRED_API_KEY, ALPHAVANTAGE_API_KEY, SEC_USER_AGENT
 # Usage: uv run etf-mvp --config configs/live.toml run
 
 [universe]
@@ -31,7 +31,8 @@ artifacts_dir = "artifacts"
 # provider: see `etf-mvp sources` for the options of each kind.
 
 [sources.market]            # 行情: daily adjusted OHLCV
-provider = "tiingo"      # synthetic | tiingo (TIINGO_API_KEY)
+provider = "alpaca"      # alpaca (ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY)
+feed = "iex"
 
 [sources.macro]             # 宏观: FRED; vintage=true uses ALFRED first releases
 enabled = true

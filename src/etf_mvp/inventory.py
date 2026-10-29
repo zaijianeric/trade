@@ -28,7 +28,7 @@ DATASETS = (
         "category": "标的历史行情",
         "name": "ETF 日线行情",
         "path": "data/market/prices.parquet",
-        "provider": "nasdaq",
+        "provider": "alpaca",
         "date_columns": ("date",),
     },
     {

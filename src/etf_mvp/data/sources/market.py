@@ -12,6 +12,79 @@ from etf_mvp.data.http import HttpClient
 from etf_mvp.data.kinds import SCHEMAS, DataKind
 
 PRICE_COLUMNS = list(SCHEMAS[DataKind.MARKET].columns)
+ALPACA_BARS_URL = "https://data.alpaca.markets/v2/stocks/{symbol}/bars"
+
+
+class AlpacaMarketSource(DataSource):
+    """Adjusted daily OHLCV bars for the configured ETF universe."""
+
+    kind = DataKind.MARKET
+    name = "alpaca"
+
+    def __init__(self, api_key: str | None = None, secret_key: str | None = None) -> None:
+        self.api_key = api_key or os.getenv("ALPACA_API_KEY_ID", "").strip()
+        self.secret_key = secret_key or os.getenv("ALPACA_API_SECRET_KEY", "").strip()
+        if not self.api_key or not self.secret_key:
+            raise ValueError(
+                "ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY are required for "
+                "market provider 'alpaca'"
+            )
+        self.client = HttpClient(min_interval_seconds=0.2, timeout_seconds=60)
+
+    def _fetch(self, request: FetchRequest) -> pd.DataFrame:
+        headers = {
+            "APCA-API-KEY-ID": self.api_key,
+            "APCA-API-SECRET-KEY": self.secret_key,
+        }
+        feed = str(request.options.get("feed", "iex"))
+        frames: list[pd.DataFrame] = []
+        for symbol in request.symbols:
+            params: dict[str, object] = {
+                "timeframe": "1Day",
+                "start": request.start,
+                "end": request.end,
+                "adjustment": "all",
+                "feed": feed,
+                "limit": 10_000,
+                "sort": "asc",
+            }
+            rows: list[dict[str, object]] = []
+            while True:
+                payload = self.client.get(
+                    ALPACA_BARS_URL.format(symbol=symbol), headers=headers, params=params
+                ).json()
+                if payload.get("message") and not payload.get("bars"):
+                    raise RuntimeError(
+                        f"Alpaca market data error for {symbol}: {payload['message']}"
+                    )
+                rows.extend(payload.get("bars") or [])
+                page_token = payload.get("next_page_token")
+                if not page_token:
+                    break
+                params["page_token"] = page_token
+            if not rows:
+                raise ValueError(f"Alpaca returned no daily bars for {symbol}")
+            frames.append(parse_alpaca_daily_prices(rows, symbol))
+        return pd.concat(frames, ignore_index=True)
+
+
+def parse_alpaca_daily_prices(rows: list[dict[str, object]], symbol: str) -> pd.DataFrame:
+    frame = pd.DataFrame(rows)
+    result = pd.DataFrame(
+        {
+            "date": pd.to_datetime(frame["t"], utc=True)
+            .dt.tz_convert("America/New_York")
+            .dt.tz_localize(None)
+            .dt.normalize(),
+            "symbol": symbol,
+            "open": frame["o"],
+            "high": frame["h"],
+            "low": frame["l"],
+            "close": frame["c"],
+            "volume": frame["v"],
+        }
+    )
+    return result[PRICE_COLUMNS]
 
 
 class TiingoMarketSource(DataSource):

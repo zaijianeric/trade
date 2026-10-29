@@ -1,5 +1,5 @@
 # Free live profile: real ETF prices, macro/FOMC data and keyless news sources.
-# Requires only FRED_API_KEY; Alpha Vantage news is optional.
+# Requires Alpaca market-data credentials and FRED_API_KEY; Alpha Vantage news is optional.
 
 [universe]
 symbols = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "TLT", "GLD", "SOXX"]
@@ -27,7 +27,8 @@ intraday_tuning_folds = 3
 artifacts_dir = "artifacts"
 
 [sources.market]
-provider = "nasdaq"
+provider = "alpaca"
+feed = "iex"
 
 [sources.macro]
 enabled = true

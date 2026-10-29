@@ -30,7 +30,7 @@ artifacts_dir = "artifacts"
 # provider: see `etf-mvp sources` for the options of each kind.
 
 [sources.market]            # 行情: daily adjusted OHLCV
-provider = "synthetic"      # synthetic | tiingo (TIINGO_API_KEY)
+provider = "synthetic"      # synthetic | alpaca (ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY)
 
 [sources.macro]             # 宏观: FRED; vintage=true uses ALFRED first releases
 enabled = true

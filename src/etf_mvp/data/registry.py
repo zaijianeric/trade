@@ -17,6 +17,7 @@ from etf_mvp.data.sources.geopolitical import (
 )
 from etf_mvp.data.sources.macro import FredMacroSource, SyntheticMacroSource
 from etf_mvp.data.sources.market import (
+    AlpacaMarketSource,
     NasdaqMarketSource,
     SyntheticMarketSource,
     TiingoMarketSource,
@@ -34,6 +35,7 @@ Factory = Callable[[int], DataSource]
 
 REGISTRY: dict[DataKind, dict[str, Factory]] = {
     DataKind.MARKET: {
+        "alpaca": lambda seed: AlpacaMarketSource(),
         "nasdaq": lambda seed: NasdaqMarketSource(),
         "synthetic": lambda seed: SyntheticMarketSource(seed),
         "tiingo": lambda seed: TiingoMarketSource(),

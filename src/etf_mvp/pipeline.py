@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 import numpy as np
@@ -20,6 +22,8 @@ from etf_mvp.modeling import (
 )
 from etf_mvp.news_quality import summarize_news_quality
 
+DAILY_FORECAST_HORIZONS = (1, 3, 5)
+
 
 def _with_market_provider(config: AppConfig, provider_name: str | None) -> AppConfig:
     if not provider_name:
@@ -38,8 +42,7 @@ def fetch_prices(config: AppConfig, provider_name: str | None = None) -> pd.Data
     return fetch_data(config, [DataKind.MARKET], provider_name).prices
 
 
-def train_models(config: AppConfig, bundle: DataBundle | None = None) -> pd.DataFrame:
-    bundle = bundle or load_bundle(config)
+def _train_models_single(config: AppConfig, bundle: DataBundle) -> pd.DataFrame:
     market_prices = bundle.prices
     baseline_features = build_feature_table(bundle, config, enhanced_price=False)
     features = build_feature_table(bundle, config, enhanced_price=True)
@@ -355,6 +358,76 @@ def train_models(config: AppConfig, bundle: DataBundle | None = None) -> pd.Data
             artifacts_dir / "data_quality" / "news.json",
         )
     return predictions_frame
+
+
+def _horizon_config(config: AppConfig, horizon_days: int) -> AppConfig:
+    artifact_dir = config.output.artifacts_dir / "horizons" / f"{horizon_days}d"
+    return replace(
+        config,
+        data=replace(
+            config.data,
+            features_path=artifact_dir / "features.parquet",
+            warehouse_path=artifact_dir / "warehouse.duckdb",
+        ),
+        model=replace(config.model, horizon_days=horizon_days),
+        output=replace(config.output, artifacts_dir=artifact_dir),
+    )
+
+
+def _combine_horizon_artifacts(
+    config: AppConfig, horizon_days: tuple[int, ...], predictions: list[pd.DataFrame]
+) -> pd.DataFrame:
+    artifacts_dir = config.output.artifacts_dir
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    predictions_frame = pd.concat(predictions, ignore_index=True)
+    predictions_frame.to_csv(artifacts_dir / "predictions.csv", index=False)
+
+    metrics: list[dict[str, object]] = []
+    for horizon in horizon_days:
+        metrics_path = artifacts_dir / "horizons" / f"{horizon}d" / "metrics.json"
+        with metrics_path.open(encoding="utf-8") as metrics_file:
+            metrics.extend(json.load(metrics_file))
+    write_json(metrics, artifacts_dir / "metrics.json")
+
+    for filename in ("feature_importance.csv", "importance_by_kind.csv"):
+        frames: list[pd.DataFrame] = []
+        for horizon in horizon_days:
+            path = artifacts_dir / "horizons" / f"{horizon}d" / filename
+            frame = pd.read_csv(path)
+            frame["horizon_days"] = horizon
+            frames.append(frame)
+        pd.concat(frames, ignore_index=True).to_csv(artifacts_dir / filename, index=False)
+    return predictions_frame
+
+
+def train_models(
+    config: AppConfig,
+    bundle: DataBundle | None = None,
+    horizons: tuple[int, ...] | None = None,
+) -> pd.DataFrame:
+    """Train one daily horizon, or concurrently train an explicit set of horizons."""
+    bundle = bundle or load_bundle(config)
+    if horizons is None:
+        return _train_models_single(config, bundle)
+
+    unique_horizons = tuple(dict.fromkeys(horizons))
+    if not unique_horizons:
+        raise ValueError("At least one forecast horizon is required.")
+    if len(unique_horizons) == 1:
+        single_config = replace(
+            config,
+            model=replace(config.model, horizon_days=unique_horizons[0]),
+        )
+        return _train_models_single(single_config, bundle)
+
+    horizon_configs = [_horizon_config(config, horizon) for horizon in unique_horizons]
+    with ThreadPoolExecutor(max_workers=min(2, len(horizon_configs))) as executor:
+        futures = [
+            executor.submit(_train_models_single, horizon_config, bundle)
+            for horizon_config in horizon_configs
+        ]
+        predictions = [future.result() for future in futures]
+    return _combine_horizon_artifacts(config, unique_horizons, predictions)
 
 
 def run_pipeline(config: AppConfig, provider_name: str | None = None) -> pd.DataFrame:

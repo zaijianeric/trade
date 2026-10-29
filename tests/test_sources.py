@@ -10,7 +10,7 @@ from etf_mvp.data.sources.central_bank import build_fomc_events, load_meetings
 from etf_mvp.data.sources.fundamental import parse_company_facts
 from etf_mvp.data.sources.geopolitical import parse_gpr_daily
 from etf_mvp.data.sources.macro import MacroSeries, parse_fred_observations
-from etf_mvp.data.sources.market import parse_nasdaq_prices
+from etf_mvp.data.sources.market import parse_alpaca_daily_prices, parse_nasdaq_prices
 from etf_mvp.data.sources.news import (
     deduplicate_news,
     parse_gdelt_articles,
@@ -39,6 +39,25 @@ def test_nasdaq_market_rows_parse_currency_and_volume() -> None:
     assert frame.loc[0, "symbol"] == "SPY"
     assert frame.loc[0, "close"] == pytest.approx(773.09)
     assert frame.loc[0, "volume"] == 31_943_810
+
+
+def test_alpaca_daily_bars_parse_to_new_york_session_date() -> None:
+    rows = [
+        {
+            "t": "2026-10-28T04:00:00Z",
+            "o": 520.0,
+            "h": 526.0,
+            "l": 518.0,
+            "c": 521.94,
+            "v": 1_500_000,
+        }
+    ]
+
+    frame = parse_alpaca_daily_prices(rows, "SOXX")
+
+    assert frame.loc[0, "date"] == pd.Timestamp("2026-10-28")
+    assert frame.loc[0, "symbol"] == "SOXX"
+    assert frame.loc[0, "close"] == pytest.approx(521.94)
 
 
 def test_sf_fed_sentiment_uses_next_business_day() -> None:

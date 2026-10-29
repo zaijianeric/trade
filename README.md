@@ -77,10 +77,12 @@ uv run etf-mvp --config configs/free.toml intraday-poll --feed iex
 ```bash
 cp .env.example .env   # 填好后 CLI 与 Streamlit 会自动读取
 
+# 日线行情与 QQQ/SOXX 分钟行情均使用 Alpaca（需要 ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY）
+
 uv run etf-mvp sources                                   # 查看各类数据源配置
 uv run etf-mvp --config configs/live.toml run            # 全部真实数据
 uv run etf-mvp --config configs/live.toml fetch --kind macro --kind central_bank
-uv run etf-mvp run --provider tiingo --source macro=fred # 在默认配置上逐类切换
+uv run etf-mvp run --provider alpaca --source macro=fred # 在默认配置上逐类切换
 
 # 仅拉取 QQQ、SOXX 多年 5 分钟数据
 uv run etf-mvp --config configs/free.toml intraday-fetch --start 2018-01-01 --feed iex

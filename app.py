@@ -26,7 +26,7 @@ from etf_mvp.interpretation import (
     load_local_env,
 )
 from etf_mvp.intraday import INTRADAY_SLOTS, INTRADAY_SYMBOLS, roll_intraday_forecast
-from etf_mvp.pipeline import run_pipeline, train_models
+from etf_mvp.pipeline import DAILY_FORECAST_HORIZONS, fetch_data, train_models
 
 ETF_SHORT_NAMES = {
     "SPY": "标普500",
@@ -50,7 +50,7 @@ st.set_page_config(
     page_title="ETF Research Lab",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -110,8 +110,14 @@ st.markdown(
 
 @st.cache_data(show_spinner=False)
 def load_results(
-    artifacts_dir_text: str, prices_path_text: str
+    artifacts_dir_text: str,
+    prices_path_text: str,
+    predictions_mtime_ns: int,
+    metrics_mtime_ns: int,
+    importance_mtime_ns: int,
+    prices_mtime_ns: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    del predictions_mtime_ns, metrics_mtime_ns, importance_mtime_ns, prices_mtime_ns
     artifacts_dir = Path(artifacts_dir_text)
     predictions_path = artifacts_dir / "predictions.csv"
     metrics_path = artifacts_dir / "metrics.json"
@@ -230,65 +236,15 @@ def period_start(max_date: pd.Timestamp, period: str) -> pd.Timestamp | None:
 
 
 config = load_config(os.getenv("ETF_MVP_CONFIG", "configs/default.toml"))
-
-st.sidebar.title("研究控制台")
-st.sidebar.caption("调整参数后可重新训练模型")
-selected_targets = st.sidebar.multiselect(
-    "预测标的",
-    options=list(config.universe.symbols),
-    default=list(config.universe.targets),
-    max_selections=4,
-    format_func=etf_display_name,
-)
-horizon_days = st.sidebar.select_slider(
-    "预测周期（交易日）",
-    options=[1, 3, 5, 10, 20],
-    value=config.model.horizon_days,
-)
-probability_threshold = st.sidebar.slider(
-    "上涨判断阈值",
-    min_value=0.40,
-    max_value=0.70,
-    value=float(config.model.probability_threshold),
-    step=0.01,
-    help="上涨概率达到该值时，界面标记为 UP。",
-)
-run_mode = st.sidebar.selectbox(
-    "数据模式",
-    ["使用现有行情", "重新生成演示数据", "Nasdaq 免费真实日线"],
-)
-run_clicked = st.sidebar.button(
-    "运行研究模型",
-    type="primary",
-    width="stretch",
-    disabled=not selected_targets,
-)
-
-if run_clicked:
-    runtime_config = replace(
-        config,
-        universe=replace(config.universe, targets=tuple(selected_targets)),
-        model=replace(
-            config.model,
-            horizon_days=horizon_days,
-            probability_threshold=probability_threshold,
-        ),
-    )
-    try:
-        with st.spinner("正在生成特征、训练模型并计算样本外指标……"):
-            if run_mode == "使用现有行情":
-                train_models(runtime_config)
-            elif run_mode == "重新生成演示数据":
-                run_pipeline(runtime_config, provider_name="synthetic")
-            else:
-                run_pipeline(runtime_config, provider_name="nasdaq")
-        st.cache_data.clear()
-        st.sidebar.success("运行完成，结果已更新")
-    except Exception as error:
-        st.sidebar.error(f"运行失败：{error}")
+probability_threshold = float(config.model.probability_threshold)
 
 predictions, metrics, importance, prices = load_results(
-    str(config.output.artifacts_dir), str(config.data.prices_path)
+    str(config.output.artifacts_dir),
+    str(config.data.prices_path),
+    (config.output.artifacts_dir / "predictions.csv").stat().st_mtime_ns,
+    (config.output.artifacts_dir / "metrics.json").stat().st_mtime_ns,
+    (config.output.artifacts_dir / "feature_importance.csv").stat().st_mtime_ns,
+    config.data.prices_path.stat().st_mtime_ns,
 )
 
 st.markdown(
@@ -302,8 +258,63 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+with st.expander("模型配置", expanded=False):
+    st.caption("每次训练固定生成未来 1、3、5 个交易日的预测，最多两项并行执行。")
+    with st.form("daily_model_config"):
+        config_left, config_right = st.columns(2)
+        selected_targets = config_left.multiselect(
+            "预测标的",
+            options=list(config.universe.symbols),
+            default=list(config.universe.targets),
+            max_selections=4,
+            format_func=etf_display_name,
+        )
+        probability_threshold = config_right.slider(
+            "上涨判断阈值",
+            min_value=0.40,
+            max_value=0.70,
+            value=probability_threshold,
+            step=0.01,
+            help="上涨概率达到该值时，界面标记为 UP。",
+        )
+        run_mode = config_left.selectbox(
+            "数据模式",
+            ["使用现有行情", "重新拉取 Alpaca 日线", "重新生成演示数据"],
+        )
+        run_clicked = st.form_submit_button(
+            "并行训练 1 / 3 / 5 日模型",
+            type="primary",
+            width="stretch",
+            disabled=not selected_targets,
+        )
+
+if run_clicked:
+    runtime_config = replace(
+        config,
+        universe=replace(config.universe, targets=tuple(selected_targets)),
+        model=replace(
+            config.model,
+            probability_threshold=probability_threshold,
+        ),
+    )
+    try:
+        with st.spinner("正在并行训练 1 / 3 / 5 日模型并计算样本外指标……"):
+            if run_mode == "使用现有行情":
+                bundle = None
+            elif run_mode == "重新拉取 Alpaca 日线":
+                fetch_data(runtime_config, [DataKind.MARKET], provider_name="alpaca")
+                bundle = None
+            else:
+                bundle = fetch_data(runtime_config, provider_name="synthetic")
+            train_models(runtime_config, bundle, horizons=DAILY_FORECAST_HORIZONS)
+        st.cache_data.clear()
+        st.success("训练完成：1 / 3 / 5 日结果已更新。")
+        st.rerun()
+    except Exception as error:
+        st.error(f"运行失败：{error}")
+
 if predictions.empty:
-    st.warning("还没有预测结果。请在左侧选择标的并点击“运行研究模型”。")
+    st.warning("还没有预测结果。请在下方展开“模型配置”并运行训练。")
     st.stop()
 
 display_predictions = predictions.copy()
@@ -312,6 +323,9 @@ display_predictions["symbol_label"] = display_predictions["symbol"].map(
 )
 display_predictions["signal"] = display_predictions["probability_up"].map(
     lambda probability: "UP" if probability >= probability_threshold else "DOWN"
+)
+display_predictions["horizon_label"] = display_predictions["horizon_days"].map(
+    lambda horizon: f"{int(horizon)} 日"
 )
 
 latest_date = display_predictions["prediction_date"].max()
@@ -326,17 +340,28 @@ overview_tab, market_tab, model_tab, guide_tab = st.tabs(
 )
 
 with overview_tab:
-    metric_columns = st.columns(len(display_predictions))
-    for column, row in zip(
-        metric_columns, display_predictions.itertuples(index=False), strict=True
-    ):
-        direction_text = "看涨" if row.signal == "UP" else "谨慎"
-        column.metric(
-            label=f"{etf_display_name(row.symbol)} · 未来 {row.horizon_days} 日",
-            value=f"{row.probability_up:.1%}",
-            delta=direction_text,
-            delta_color="normal" if row.signal == "UP" else "inverse",
-        )
+    st.subheader("1 / 3 / 5 日预测")
+    for symbol in display_predictions["symbol"].drop_duplicates():
+        symbol_predictions = display_predictions.loc[
+            display_predictions["symbol"] == symbol
+        ].set_index("horizon_days")
+        with st.container(border=True):
+            st.markdown(f"**{etf_display_name(symbol)}**")
+            metric_columns = st.columns(len(DAILY_FORECAST_HORIZONS))
+            for column, horizon_days in zip(
+                metric_columns, DAILY_FORECAST_HORIZONS, strict=True
+            ):
+                if horizon_days not in symbol_predictions.index:
+                    column.metric(f"未来 {horizon_days} 日", "--")
+                    continue
+                row = symbol_predictions.loc[horizon_days]
+                direction_text = "看涨" if row.signal == "UP" else "谨慎"
+                column.metric(
+                    label=f"未来 {horizon_days} 日",
+                    value=f"{row.probability_up:.1%}",
+                    delta=direction_text,
+                    delta_color="normal" if row.signal == "UP" else "inverse",
+                )
 
     chart_left, chart_right = st.columns([1.35, 1])
     with chart_left:
@@ -345,10 +370,10 @@ with overview_tab:
             display_predictions,
             x="symbol_label",
             y="probability_up",
-            color="signal",
+            color="horizon_label",
+            barmode="group",
             text=display_predictions["probability_up"].map(lambda value: f"{value:.1%}"),
             range_y=[0, 1],
-            color_discrete_map={"UP": "#16a34a", "DOWN": "#ef4444"},
         )
         probability_figure.add_hline(
             y=probability_threshold,
@@ -360,24 +385,26 @@ with overview_tab:
             xaxis_title=None,
             yaxis_title="上涨概率",
             yaxis_tickformat=".0%",
-            legend_title=None,
+            legend_title="预测周期",
             margin=dict(l=10, r=10, t=20, b=10),
         )
         st.plotly_chart(probability_figure, width="stretch")
 
     with chart_right:
         st.subheader("如何解读")
-        strongest = display_predictions.loc[display_predictions["probability_up"].idxmax()]
-        weakest = display_predictions.loc[display_predictions["probability_up"].idxmin()]
-        st.write(
-            f"**相对最强：** {etf_display_name(strongest['symbol'])}，"
-            f"上涨概率 {strongest['probability_up']:.1%}"
-        )
-        st.write(
-            f"**相对最弱：** {etf_display_name(weakest['symbol'])}，"
-            f"上涨概率 {weakest['probability_up']:.1%}"
-        )
-        st.write(f"**模型周期：** 未来 {int(strongest['horizon_days'])} 个交易日")
+        for horizon_days in DAILY_FORECAST_HORIZONS:
+            horizon_predictions = display_predictions.loc[
+                display_predictions["horizon_days"] == horizon_days
+            ]
+            if horizon_predictions.empty:
+                continue
+            strongest = horizon_predictions.loc[horizon_predictions["probability_up"].idxmax()]
+            weakest = horizon_predictions.loc[horizon_predictions["probability_up"].idxmin()]
+            st.write(
+                f"**{horizon_days} 日：** 最强 {etf_display_name(strongest['symbol'])} "
+                f"{strongest['probability_up']:.1%}；最弱 "
+                f"{etf_display_name(weakest['symbol'])} {weakest['probability_up']:.1%}"
+            )
         st.info("概率接近 50% 表示模型缺少明确方向，不应解读为交易信号。")
 
 with market_tab:
@@ -1199,6 +1226,7 @@ with model_tab:
         display_metrics = metrics[
             [
                 "symbol",
+                "horizon_days",
                 "accuracy",
                 "roc_auc",
                 "brier_score",
@@ -1216,6 +1244,7 @@ with model_tab:
         )
         display_metrics.columns = [
             "ETF",
+            "预测周期（交易日）",
             "准确率",
             "ROC AUC",
             "Brier",
@@ -1233,8 +1262,22 @@ with model_tab:
             key="importance_symbol",
             format_func=etf_display_name,
         )
+        importance_horizon = st.selectbox(
+            "预测周期（交易日）",
+            sorted(importance["horizon_days"].unique())
+            if "horizon_days" in importance
+            else [config.model.horizon_days],
+            key="importance_horizon",
+        )
         selected_importance = (
-            importance.loc[importance["symbol"] == importance_symbol]
+            importance.loc[
+                (importance["symbol"] == importance_symbol)
+                & (
+                    importance["horizon_days"] == importance_horizon
+                    if "horizon_days" in importance
+                    else True
+                )
+            ]
             .nlargest(15, "importance")
             .sort_values("importance")
             .copy()
@@ -1264,7 +1307,14 @@ with model_tab:
             st.subheader("各类数据的贡献")
             kind_labels = {kind.value: kind.label for kind in DataKind}
             by_kind = pd.read_csv(by_kind_path)
-            by_kind = by_kind.loc[by_kind["symbol"] == importance_symbol].copy()
+            by_kind = by_kind.loc[
+                (by_kind["symbol"] == importance_symbol)
+                & (
+                    by_kind["horizon_days"] == importance_horizon
+                    if "horizon_days" in by_kind
+                    else True
+                )
+            ].copy()
             by_kind["数据类别"] = by_kind["kind"].map(kind_labels).fillna(by_kind["kind"])
             by_kind["占比"] = by_kind["importance"] / by_kind["importance"].sum()
             kind_figure = px.bar(
