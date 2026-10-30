@@ -1,0 +1,45 @@
+{
+  "status": "available",
+  "rows": 4319,
+  "article_rows": 980,
+  "coverage_start": "2014-01-08",
+  "latest_available": "2026-10-30",
+  "latest_market": "2026-10-29",
+  "stale_calendar_days": 0,
+  "unique_articles": 4319,
+  "active_days": 3343,
+  "sources": [
+    {
+      "source": "google_news",
+      "rows": 980,
+      "coverage_start": "2026-09-28",
+      "latest_available": "2026-10-30",
+      "active_days": 25
+    },
+    {
+      "source": "sf_fed",
+      "rows": 3339,
+      "coverage_start": "2014-01-08",
+      "latest_available": "2026-10-30",
+      "active_days": 3339
+    }
+  ],
+  "top_topics": [
+    {
+      "topic": "financial_markets",
+      "rows": 3626
+    },
+    {
+      "topic": "economy_macro",
+      "rows": 3623
+    },
+    {
+      "topic": "technology",
+      "rows": 261
+    },
+    {
+      "topic": "geopolitical",
+      "rows": 148
+    }
+  ]
+}

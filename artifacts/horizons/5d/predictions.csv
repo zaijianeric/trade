@@ -1,0 +1,5 @@
+prediction_date,symbol,horizon_days,probability_up,predicted_direction,model
+2026-10-29,SPY,5,0.4457374789111572,DOWN,LGBMClassifier
+2026-10-29,QQQ,5,0.6894649626432656,UP,LGBMClassifier
+2026-10-29,IWM,5,0.6694743066373983,UP,LGBMClassifier
+2026-10-29,SOXX,5,0.46783091351365336,UP,LGBMClassifier

@@ -155,7 +155,7 @@ st.markdown(
       <div class="architecture-rows">
         <div class="architecture-row">
           <div class="layer-label"><span class="layer-number">01</span><span class="layer-name">数据源</span></div>
-          <div class="architecture-card"><div class="card-title">日线与分钟</div><div class="card-detail">Nasdaq 日线 · Alpaca QQQ/SOXX 5分钟</div></div>
+          <div class="architecture-card"><div class="card-title">日线与分钟</div><div class="card-detail">Alpaca 日线 · Alpaca QQQ/SOXX 5分钟</div></div>
           <div class="architecture-card"><div class="card-title">新闻情绪</div><div class="card-detail">SF Fed · Daily News Sentiment</div></div>
           <div class="architecture-card"><div class="card-title">地缘风险</div><div class="card-detail">GPR · Threats · Acts</div></div>
         </div>
@@ -218,7 +218,7 @@ with overview_left:
         """
         <div class="doc-panel">
           <h3>目标</h3>
-          <p>预测指定美股 ETF 在未来 1–20 个交易日的上涨概率，验证特征与模型是否具有稳定的样本外解释力。</p>
+          <p>预测指定美股 ETF 在未来 1、3、5 个交易日的上涨概率，验证特征与模型是否具有稳定的样本外解释力。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -267,6 +267,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown('<div class="section-label">Versioned Static Data</div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="doc-panel">
+      <h3>远端同步规则</h3>
+      <p>所有静态数据均为项目版本的一部分：拉取的日线和分钟行情、新闻与宏观/地缘原始数据、清洗数据、特征表、DuckDB 仓库、预测、评估、模型 Joblib、回测、调参和质量产物。后续执行“提交项目”或“上传项目”时，必须连同对应的 <code>data/</code> 与 <code>artifacts/</code> 变更一起提交并推送到远端，以便其他机器无需重新拉取或训练即可复现当前看板。</p>
+      <p>例外仅限敏感配置：<code>.env</code>、API Key、账户凭据和临时缓存始终不上传。本次仅记录该规则，不上传现有静态数据。</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown('<div class="section-label">Repository Guide</div>', unsafe_allow_html=True)
 guide_left, guide_right = st.columns([1, 1])
 with guide_left:
@@ -290,8 +302,8 @@ with guide_left:
 │   ├── modeling.py           # 模型训练与评估
 │   └── pipeline.py           # 端到端流水线
 ├── tests/                    # 自动化测试
-├── data/                     # 本地数据（Git 忽略）
-└── artifacts/                # 预测与模型（Git 忽略）""",
+├── data/                     # 版本化静态数据（提交项目时同步远端）
+└── artifacts/                # 版本化预测与模型（提交项目时同步远端）""",
         language="text",
     )
 with guide_right:

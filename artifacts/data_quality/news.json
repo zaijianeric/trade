@@ -1,45 +1,42 @@
 {
   "status": "available",
-  "rows": 3738,
-  "article_rows": 400,
-  "coverage_start": "2014-01-08",
-  "latest_available": "2026-10-26",
-  "latest_market": "2026-10-23",
-  "stale_calendar_days": 0,
-  "unique_articles": 3738,
-  "active_days": 3339,
+  "rows": 20093,
+  "article_rows": 20093,
+  "coverage_start": "2014-01-01",
+  "latest_available": "2026-10-22",
+  "latest_market": "2026-10-28",
+  "stale_calendar_days": 6,
+  "unique_articles": 20093,
+  "active_days": 3336,
   "sources": [
     {
-      "source": "google_news",
-      "rows": 400,
-      "coverage_start": "2026-09-28",
-      "latest_available": "2026-10-26",
-      "active_days": 21
-    },
-    {
-      "source": "sf_fed",
-      "rows": 3338,
-      "coverage_start": "2014-01-08",
-      "latest_available": "2026-10-23",
-      "active_days": 3338
+      "source": "synthetic",
+      "rows": 20093,
+      "coverage_start": "2014-01-01",
+      "latest_available": "2026-10-22",
+      "active_days": 3336
     }
   ],
   "top_topics": [
     {
-      "topic": "economy_macro",
-      "rows": 3438
+      "topic": "energy_transportation",
+      "rows": 4091
+    },
+    {
+      "topic": "economy_monetary",
+      "rows": 4017
     },
     {
       "topic": "financial_markets",
-      "rows": 3438
-    },
-    {
-      "topic": "geopolitical",
-      "rows": 100
+      "rows": 4016
     },
     {
       "topic": "technology",
-      "rows": 100
+      "rows": 4015
+    },
+    {
+      "topic": "economy_macro",
+      "rows": 3954
     }
   ]
 }

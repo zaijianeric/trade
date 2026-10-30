@@ -1,0 +1,62 @@
+[
+  {
+    "symbol": "SPY",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5796178343949044,
+    "with_news_accuracy": 0.5668789808917197,
+    "accuracy_delta": -0.01273885350318471,
+    "without_news_roc_auc": 0.6221808400579351,
+    "with_news_roc_auc": 0.6064142354645148,
+    "roc_auc_delta": -0.015766604593420275,
+    "without_news_brier": 0.24654628925513683,
+    "with_news_brier": 0.24699020139440106,
+    "brier_delta": 0.0004439121392642298,
+    "accepted": false,
+    "selected_news_features": "excluded"
+  },
+  {
+    "symbol": "QQQ",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5605095541401274,
+    "with_news_accuracy": 0.5573248407643312,
+    "accuracy_delta": -0.0031847133757961776,
+    "without_news_roc_auc": 0.6083712540482925,
+    "with_news_roc_auc": 0.5996392407657936,
+    "roc_auc_delta": -0.008732013282498952,
+    "without_news_brier": 0.24569189877801773,
+    "with_news_brier": 0.24426775650143584,
+    "brier_delta": -0.0014241422765818856,
+    "accepted": false,
+    "selected_news_features": "excluded"
+  },
+  {
+    "symbol": "IWM",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5605095541401274,
+    "with_news_accuracy": 0.5668789808917197,
+    "accuracy_delta": 0.006369426751592355,
+    "without_news_roc_auc": 0.6026314717503768,
+    "with_news_roc_auc": 0.6207992178907491,
+    "roc_auc_delta": 0.01816774614037231,
+    "without_news_brier": 0.26823009412017357,
+    "with_news_brier": 0.2596264428013119,
+    "brier_delta": -0.00860365131886165,
+    "accepted": true,
+    "selected_news_features": "included"
+  },
+  {
+    "symbol": "SOXX",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5573248407643312,
+    "with_news_accuracy": 0.5732484076433121,
+    "accuracy_delta": 0.015923566878980888,
+    "without_news_roc_auc": 0.5925577013659915,
+    "with_news_roc_auc": 0.5802252387273583,
+    "roc_auc_delta": -0.01233246263863319,
+    "without_news_brier": 0.2594720249948799,
+    "with_news_brier": 0.25948375954122066,
+    "brier_delta": 1.1734546340735896e-05,
+    "accepted": true,
+    "selected_news_features": "included"
+  }
+]

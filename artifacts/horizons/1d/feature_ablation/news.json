@@ -1,0 +1,62 @@
+[
+  {
+    "symbol": "SPY",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5301587301587302,
+    "with_news_accuracy": 0.5301587301587302,
+    "accuracy_delta": 0.0,
+    "without_news_roc_auc": 0.5247612882343421,
+    "with_news_roc_auc": 0.5355235474995954,
+    "roc_auc_delta": 0.010762259265253316,
+    "without_news_brier": 0.2514496028440443,
+    "with_news_brier": 0.2514118423485799,
+    "brier_delta": -3.776049546438953e-05,
+    "accepted": true,
+    "selected_news_features": "included"
+  },
+  {
+    "symbol": "QQQ",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5428571428571428,
+    "with_news_accuracy": 0.5428571428571428,
+    "accuracy_delta": 0.0,
+    "without_news_roc_auc": 0.4889538661468486,
+    "with_news_roc_auc": 0.4976851851851851,
+    "roc_auc_delta": 0.008731319038336516,
+    "without_news_brier": 0.24977431770625522,
+    "with_news_brier": 0.249812453061827,
+    "brier_delta": 3.813535557178893e-05,
+    "accepted": false,
+    "selected_news_features": "excluded"
+  },
+  {
+    "symbol": "IWM",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5650793650793651,
+    "with_news_accuracy": 0.5746031746031746,
+    "accuracy_delta": 0.00952380952380949,
+    "without_news_roc_auc": 0.5635875752154822,
+    "with_news_roc_auc": 0.5727354041307531,
+    "roc_auc_delta": 0.009147828915270884,
+    "without_news_brier": 0.257984355832901,
+    "with_news_brier": 0.2530414117857026,
+    "brier_delta": -0.0049429440471984165,
+    "accepted": true,
+    "selected_news_features": "included"
+  },
+  {
+    "symbol": "SOXX",
+    "news_feature_count": 112,
+    "without_news_accuracy": 0.5873015873015873,
+    "with_news_accuracy": 0.5873015873015873,
+    "accuracy_delta": 0.0,
+    "without_news_roc_auc": 0.5170478170478171,
+    "with_news_roc_auc": 0.5006237006237007,
+    "roc_auc_delta": -0.016424116424116453,
+    "without_news_brier": 0.24551320470042265,
+    "with_news_brier": 0.24552681828426137,
+    "brier_delta": 1.361358383872302e-05,
+    "accepted": false,
+    "selected_news_features": "excluded"
+  }
+]

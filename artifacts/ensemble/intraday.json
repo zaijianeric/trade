@@ -1,83 +1,83 @@
 [
   {
     "symbol": "QQQ",
-    "feature_set": "baseline",
+    "feature_set": "enhanced",
     "parameter_set": "fixed",
     "inner_start": "2020-07-28",
-    "inner_end": "2025-07-29",
+    "inner_end": "2025-07-31",
     "folds": 3,
-    "single_direction_accuracy": 0.5337620578778135,
-    "ensemble_direction_accuracy": 0.5337620578778135,
+    "single_direction_accuracy": 0.5448717948717948,
+    "ensemble_direction_accuracy": 0.5448717948717948,
     "direction_accuracy_delta": 0.0,
-    "single_path_rmse_pct": 0.01227305854019866,
-    "ensemble_path_rmse_pct": 0.012198126953452171,
-    "path_rmse_delta": -7.49315867464885e-05,
+    "single_path_rmse_pct": 0.012441110790752564,
+    "ensemble_path_rmse_pct": 0.012343768540372389,
+    "path_rmse_delta": -9.734225038017519e-05,
     "accepted": false,
     "selected_strategy": "single",
     "weights": {
-      "lightgbm": 0.343632433207899,
-      "extra_trees": 0.3450290808388235,
-      "hist_gradient": 0.3113384859532775
+      "lightgbm": 0.3333351327630972,
+      "extra_trees": 0.3316965631454617,
+      "hist_gradient": 0.3349683040914411
     },
     "components": [
       {
         "model": "lightgbm",
         "direction_accuracy": 0.5341365461847389,
-        "path_return_rmse": 0.01178422062889559,
-        "quality_score": 0.43986278115357424
+        "path_return_rmse": 0.011358501272278809,
+        "quality_score": 0.44326853600650845
       },
       {
         "model": "extra_trees",
-        "direction_accuracy": 0.5321285140562249,
-        "path_return_rmse": 0.011309746251821212,
-        "quality_score": 0.44165054404165516
+        "direction_accuracy": 0.5301204819277109,
+        "path_return_rmse": 0.011128864153146083,
+        "quality_score": 0.44108956870254223
       },
       {
         "model": "hist_gradient",
-        "direction_accuracy": 0.4979919678714859,
-        "path_return_rmse": 0.012433335747384866,
-        "quality_score": 0.398525281892407
+        "direction_accuracy": 0.5381526104417671,
+        "path_return_rmse": 0.01158903572098921,
+        "quality_score": 0.4454403246738534
       }
     ]
   },
   {
     "symbol": "SOXX",
-    "feature_set": "enhanced",
+    "feature_set": "baseline",
     "parameter_set": "fixed",
     "inner_start": "2021-04-05",
-    "inner_end": "2026-06-04",
+    "inner_end": "2026-06-08",
     "folds": 3,
-    "single_direction_accuracy": 0.5353535353535354,
-    "ensemble_direction_accuracy": 0.5353535353535354,
+    "single_direction_accuracy": 0.57,
+    "ensemble_direction_accuracy": 0.57,
     "direction_accuracy_delta": 0.0,
-    "single_path_rmse_pct": 0.03542356086007164,
-    "ensemble_path_rmse_pct": 0.034834863855078536,
-    "path_rmse_delta": -0.0005886970049931023,
+    "single_path_rmse_pct": 0.0335512684034061,
+    "ensemble_path_rmse_pct": 0.032692287595067655,
+    "path_rmse_delta": -0.000858980808338447,
     "accepted": true,
     "selected_strategy": "ensemble",
     "weights": {
-      "lightgbm": 0.32546825041243804,
-      "extra_trees": 0.41275322139192927,
-      "hist_gradient": 0.2617785281956327
+      "lightgbm": 0.3299469010984148,
+      "extra_trees": 0.3546334909678321,
+      "hist_gradient": 0.3154196079337532
     },
     "components": [
       {
         "model": "lightgbm",
-        "direction_accuracy": 0.4936708860759494,
-        "path_return_rmse": 0.025699626567750704,
-        "quality_score": 0.28807387353394376
+        "direction_accuracy": 0.5157232704402516,
+        "path_return_rmse": 0.02553418236991195,
+        "quality_score": 0.31144981148095596
       },
       {
         "model": "extra_trees",
-        "direction_accuracy": 0.5506329113924051,
-        "path_return_rmse": 0.023162824220941965,
-        "quality_score": 0.3653303176248694
+        "direction_accuracy": 0.5345911949685535,
+        "path_return_rmse": 0.024979842971741145,
+        "quality_score": 0.33475245119462427
       },
       {
         "model": "hist_gradient",
-        "direction_accuracy": 0.4430379746835443,
-        "path_return_rmse": 0.02641703137480747,
-        "quality_score": 0.23170172368508452
+        "direction_accuracy": 0.5157232704402516,
+        "path_return_rmse": 0.027248292542791284,
+        "quality_score": 0.2977369300979213
       }
     ]
   }
